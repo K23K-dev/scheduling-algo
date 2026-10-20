@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The practice workspace supports generated problems, algorithm controls, process tables, scheduling rules, and editable 40-block CPU/I/O timelines with undo/redo. Course FCFS and round robin have tested simulators and seeded generators. Checking, hints, solution playback, persistence, SJF, SRTF, and priority scheduling are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** The practice workspace supports generated problems, algorithm controls, process tables, scheduling rules, editable 40-block CPU/I/O timelines with undo/redo, and answer checking with explanations of the earliest mistake. Course FCFS and round robin have tested simulators and seeded generators. Hints, solution playback, persistence, SJF, SRTF, and priority scheduling are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -246,7 +246,13 @@ The worksheet starts with 40 unanswered cells per resource and boundary labels 0
 
 **Fill remaining empty cells with Idle** preserves existing assignments. **Clear attempt** erases both rows. Each is a single undoable edit. Undo/redo retains up to 100 changes, ignores no-op assignments, and drops redo history only after a changed edit. History never crosses into a new problem. The immutable editing reducer is in `src/practice/attempt.ts`; answers are independent of the reference simulator, and even incorrect assignments are allowed without feedback.
 
-Keyboard users can Tab into the worksheet, move between cells with arrow keys, jump to a row's first/last block with Home/End, assign the selected tool with Enter/Space, and erase with Delete/Backspace. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. These shortcuts apply only inside the worksheet. Small screens preserve readable cell widths and scroll horizontally. Every cell exposes its resource, interval, and assignment as an accessible label. The filled-cell count does not indicate correctness, and the solution and completion time are not rendered. Checking and solution controls follow in later steps; attempts currently last for the open page session.
+Keyboard users can Tab into the worksheet, move between cells with arrow keys, jump to a row's first/last block with Home/End, assign the selected tool with Enter/Space, and erase with Delete/Backspace. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. These shortcuts apply only inside the worksheet. Small screens preserve readable cell widths and scroll horizontally. Every cell exposes its resource, interval, and assignment as an accessible label. The filled-cell count does not indicate correctness. Attempts currently last for the open page session.
+
+**Check answer** compares the current attempt against the applied settings, even while other settings are still a draft. It reports only the earliest wrong or unanswered interval, grouping CPU and I/O feedback when both need attention there. Each explanation names the expected assignment and explains the decision using the simulator's recorded events, process states, remaining work, and dispatch candidates. Unanswered cells remain different from intentional Idle cells, including the unused tail. A complete matching attempt receives a success message.
+
+The reported cells have an outline and a review marker, with accessible links to their explanations. **Edit CPU/I/O at time …** scrolls to and focuses that cell without changing its assignment. Checking never fills answers or changes undo history. Editing, undoing, redoing, clearing, or filling hides the previous result until another explicit check. Applying changed settings or starting a new problem also clears feedback; draft settings, invalid submissions, and canceled replacements preserve it. Hints and full solution playback follow in a later step.
+
+The pure grader is in `src/scheduling/grader.ts`. It validates attempts, uses the shared reference simulator, and returns only success or the issues at the first differing interval. It rejects unsupported policies and workloads that exceed 40 intervals. Tests cover chronological comparison across both rows, blank versus Idle, original launch order, round-robin queue ordering and expiration, simultaneous completion, I/O contention, and the full check–correct–recheck interface flow.
 
 ## Local development
 
@@ -259,7 +265,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Generate a workload, choose an assignment tool, and fill the CPU/I/O timelines. Checking and explanations will be added in the next step.
+Open the local URL printed by Vite. Generate a workload, choose an assignment tool, and fill the CPU/I/O timelines. Select **Check answer**, revise the earliest interval that needs attention, and check again.
 
 | Command | Purpose |
 | --- | --- |

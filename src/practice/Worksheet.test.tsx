@@ -35,7 +35,8 @@ function Harness() {
 
   return (
     <>
-      <Worksheet processes={processes} history={history} onEdit={dispatch} />
+      <Worksheet processes={processes} history={history} onEdit={dispatch}
+        onCheck={() => undefined} feedback={null} checkError={null} />
       <output aria-label="Saved attempt">{JSON.stringify(history.present)}</output>
       <button type="button">Outside worksheet</button>
     </>
@@ -137,7 +138,8 @@ describe('editable worksheet', () => {
       'aria-pressed',
       'true',
     )
-    expect(screen.queryByText(/incorrect|correct answer|check answer/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/incorrect|correct answer|review time/i)).not.toBeInTheDocument()
+    expect(cell('cpu', 0, 'P1')).not.toHaveAttribute('aria-invalid')
   })
 
   test('keeps Idle distinct from erasing an answer', () => {

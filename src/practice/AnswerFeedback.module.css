@@ -1,0 +1,110 @@
+.feedbackArea {
+  margin-inline: 1.4rem;
+}
+
+.feedback {
+  margin-bottom: 1.2rem;
+  padding: 1.1rem;
+  border: 1px solid #7b6848;
+  border-radius: 6px;
+  background: #211f19;
+}
+
+.feedback .eyebrow {
+  margin: 0 0 0.5rem;
+  color: #e7c58d;
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  letter-spacing: 0.08em;
+}
+
+.feedback h3 {
+  margin: 0;
+  color: #f3dfbd;
+  font-size: 1rem;
+}
+
+.feedback p {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: #c9ccca;
+}
+
+.feedback .introduction,
+.feedback .nextStep {
+  color: #b8bdb8;
+  font-size: 0.73rem;
+}
+
+.issues {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.issue {
+  min-width: 0;
+  padding: 0.9rem;
+  border: 1px solid #4e4c3d;
+  border-radius: 5px;
+  background: #181d1d;
+}
+
+.issue h4 {
+  margin: 0 0 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+}
+
+.answers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  color: #aebdbb;
+  font-size: 0.73rem;
+}
+
+.answers b {
+  color: #f1dfbe;
+  font-weight: 550;
+}
+
+.issue button {
+  min-height: 2.5rem;
+  margin-top: 0.85rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #726345;
+  border-radius: 4px;
+  background: #2b291f;
+  color: #f1dfbe;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.issue button:hover {
+  border-color: #e7c58d;
+}
+
+.success {
+  background: #172821;
+  border-color: #426d59;
+}
+
+.success h3,
+.success .eyebrow {
+  color: #a6e5c3;
+}
+
+.checkError {
+  margin: 0 0 1rem;
+  color: #ffb9b1;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 600px) {
+  .feedbackArea {
+    margin-inline: 1rem;
+  }
+}

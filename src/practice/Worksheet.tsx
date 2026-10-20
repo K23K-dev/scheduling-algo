@@ -8,6 +8,7 @@ import {
   type PointerEvent,
 } from 'react'
 import { TIME_BOUNDARIES } from '../scheduling/timeline'
+import type { GradeResult } from '../scheduling/grader'
 import {
   TIMELINE_LENGTH,
   type AttemptCell,
@@ -15,6 +16,7 @@ import {
   type Resource,
 } from '../scheduling/types'
 import type { AttemptAction, AttemptHistory } from './attempt'
+import { AnswerFeedback } from './AnswerFeedback'
 import styles from '../App.module.css'
 import editor from './Worksheet.module.css'
 
@@ -35,6 +37,10 @@ interface WorksheetProps {
   readonly processes: readonly ProcessInput[]
   readonly history: AttemptHistory
   readonly onEdit: Dispatch<AttemptAction>
+  readonly onCheck: () => void
+  readonly feedback: GradeResult | null
+  readonly checkError: string | null
+  readonly pendingSettings?: boolean
 }
 
 const intervals = TIME_BOUNDARIES.slice(0, TIMELINE_LENGTH)
@@ -44,7 +50,9 @@ function cellLabel(value: AttemptCell): string {
   return value === null ? 'unanswered' : value === 'idle' ? 'Idle' : value
 }
 
-export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
+export function Worksheet({
+  processes, history, onEdit, onCheck, feedback, checkError, pendingSettings = false,
+}: WorksheetProps) {
   const [tool, setTool] = useState<AttemptCell>(processes[0].id)
   const [focused, setFocused] = useState<CellPosition>({ resource: 'cpu', index: 0 })
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -52,6 +60,7 @@ export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
   const suppressClick = useRef(false)
   const regionRef = useRef<HTMLDivElement>(null)
   const answered = [...history.present.cpu, ...history.present.io].filter((cell) => cell !== null).length
+  const visibleFeedback = drag === null ? feedback : null
 
   const cancelDrag = useCallback(() => {
     const current = dragRef.current
@@ -258,6 +267,9 @@ export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
                   const preview = drag !== null && drag.resource === resource &&
                     time >= Math.min(drag.start, drag.end) && time <= Math.max(drag.start, drag.end)
                   const value = preview ? drag.value : history.present[resource][time]
+                  const flagged = visibleFeedback?.status === 'needs-correction' &&
+                    visibleFeedback.time === time &&
+                    visibleFeedback.issues.some((issue) => issue.resource === resource)
                   return (
                     <td
                       key={time}
@@ -267,10 +279,13 @@ export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
                         type="button"
                         className={editor.cellButton}
                         aria-label={`${label}, time ${time} to ${time + 1}: ${cellLabel(value)}`}
+                        aria-invalid={flagged || undefined}
+                        aria-describedby={flagged ? `feedback-${resource}` : undefined}
                         data-resource={resource}
                         data-index={time}
                         data-value={value ?? 'empty'}
                         data-preview={preview || undefined}
+                        data-feedback={flagged || undefined}
                         tabIndex={focused.resource === resource && focused.index === time ? 0 : -1}
                         onFocus={() => setFocused({ resource, index: time })}
                         onPointerDown={(event) => startDrag(event, { resource, index: time })}
@@ -284,7 +299,10 @@ export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
                           suppressClick.current = false
                           onEdit({ type: 'paint', resource, start: time, end: time, value: tool })
                         }}
-                      ><span aria-hidden="true">{value === null ? '·' : cellLabel(value)}</span></button>
+                      >
+                        <span aria-hidden="true">{value === null ? '·' : cellLabel(value)}</span>
+                        {flagged ? <span className={editor.reviewMarker} aria-hidden="true">!</span> : null}
+                      </button>
                     </td>
                   )
                 })}
@@ -297,8 +315,20 @@ export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
         <button type="button" disabled={answered === 80} onClick={() => onEdit({ type: 'fill-idle' })}>
           Fill remaining empty cells with Idle
         </button>
-        <p>Your assignments stay editable. Checking comes next.</p>
+        <button type="button" className={editor.checkButton} onClick={() => { cancelDrag(); onCheck() }}>
+          Check answer
+        </button>
       </div>
+      <p className={editor.checkHelp}>
+        {pendingSettings
+          ? 'Checking uses the current problem’s applied settings. Your setting changes are still pending.'
+          : 'Check when you’re ready. Only the earliest interval needing attention will be shown.'}
+      </p>
+      <AnswerFeedback
+        result={visibleFeedback}
+        error={checkError}
+        onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
+      />
       <div className={styles.worksheetFooter} id="keyboard-help">
         <p>Arrow keys move · Enter/Space assign · Delete erases · Ctrl/Cmd+Z undoes</p>
         <p>On touch screens, tap to assign and swipe to scroll.</p>

@@ -1,12 +1,13 @@
 import { useReducer, useState, type FormEvent } from 'react'
 import { createProblemSeed, generateProblem } from './scheduling/generator'
 import { getSchedulingRule } from './scheduling/rules'
+import { gradeAttempt, type GradeResult } from './scheduling/grader'
 import type { Problem, SchedulingSettings } from './scheduling/types'
 import { updateProblemSettings } from './practice/settings'
 import { ProcessTable, RulesPanel } from './practice/Workspace'
 import { Worksheet } from './practice/Worksheet'
 import { ReplaceProblemDialog } from './practice/ReplaceProblemDialog'
-import { attemptReducer, createAttemptHistory } from './practice/attempt'
+import { attemptReducer, createAttemptHistory, type AttemptAction } from './practice/attempt'
 import styles from './App.module.css'
 
 type AvailableAlgorithm = 'fcfs-course' | 'round-robin'
@@ -22,9 +23,30 @@ export default function App() {
   const [notice, setNotice] = useState('Problem ready. All three processes arrive at time 0.')
   const [history, editAttempt] = useReducer(attemptReducer, undefined, createAttemptHistory)
   const [replacement, setReplacement] = useState<Problem | null>(null)
+  const [feedback, setFeedback] = useState<GradeResult | null>(null)
+  const [checkError, setCheckError] = useState<string | null>(null)
   const activeRule = getSchedulingRule(problem.settings)
   const pendingSettings = algorithm !== problem.settings.algorithm ||
     (problem.settings.algorithm === 'round-robin' && Number(quantum) !== problem.settings.quantum)
+
+  function clearFeedback() {
+    setFeedback(null)
+    setCheckError(null)
+  }
+
+  function handleEdit(action: AttemptAction) {
+    editAttempt(action)
+    clearFeedback()
+  }
+
+  function handleCheck() {
+    clearFeedback()
+    try {
+      setFeedback(gradeAttempt(problem, history.present))
+    } catch {
+      setCheckError('Your answer could not be checked. Please try again.')
+    }
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -48,6 +70,7 @@ export default function App() {
         const next = generateProblem(createProblemSeed(problem.seed), settings)
         setProblem(next)
         editAttempt({ type: 'reset' })
+        clearFeedback()
         setNotice('New problem ready. Read the process table to get started.')
       } else if (pendingSettings) {
         const updated = updateProblemSettings(problem, settings, createProblemSeed(problem.seed))
@@ -59,6 +82,7 @@ export default function App() {
           return
         }
         setProblem(updated.problem)
+        clearFeedback()
         if (updated.replaced) editAttempt({ type: 'reset' })
         setNotice(updated.replaced
           ? 'The previous workload would exceed 40 blocks with these settings. A new problem is ready.'
@@ -176,7 +200,11 @@ export default function App() {
         key={problem.seed}
         processes={problem.processes}
         history={history}
-        onEdit={editAttempt}
+        onEdit={handleEdit}
+        onCheck={handleCheck}
+        feedback={feedback}
+        checkError={checkError}
+        pendingSettings={pendingSettings}
       />
       {replacement ? (
         <ReplaceProblemDialog
@@ -187,6 +215,7 @@ export default function App() {
           onConfirm={() => {
             setProblem(replacement)
             editAttempt({ type: 'reset' })
+            clearFeedback()
             setReplacement(null)
             setNotice('The previous workload would exceed 40 blocks with these settings. A new problem is ready.')
           }}
