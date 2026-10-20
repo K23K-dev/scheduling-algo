@@ -5,6 +5,7 @@
   border: 1px solid #456b7e;
   border-radius: 6px;
   background: #16262e;
+  overflow-wrap: anywhere;
 }
 .panel .eyebrow {
   margin: 0 0 0.5rem;
@@ -18,7 +19,8 @@
 .resource { margin-top: 1rem; }
 .resource h4 { margin: 0; color: #a9d7ec; font-family: var(--mono); font-size: 0.75rem; }
 .panel button {
-  min-height: 2.5rem;
+  min-height: var(--control-size);
+  max-width: 100%;
   margin-top: 1rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid #60869b;
@@ -30,5 +32,5 @@
 }
 .panel button:hover { border-color: #bbd9ea; }
 .panel .note { color: var(--muted); font-size: 0.73rem; }
-.error { margin: 0 0 1rem; color: #ffb9b1; font-size: 0.8rem; }
+.error { margin: 0 0 1rem; color: #ffb9b1; font-size: 0.8rem; overflow-wrap: anywhere; }
 @media (max-width: 600px) { .hintArea { margin-inline: 1rem; } }

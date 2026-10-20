@@ -8,6 +8,7 @@
   border: 1px solid #7b6848;
   border-radius: 6px;
   background: #211f19;
+  overflow-wrap: anywhere;
 }
 
 .feedback .eyebrow {
@@ -72,7 +73,8 @@
 }
 
 .issue button {
-  min-height: 2.5rem;
+  min-height: var(--control-size);
+  max-width: 100%;
   margin-top: 0.85rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid #726345;
@@ -101,6 +103,7 @@
   margin: 0 0 1rem;
   color: #ffb9b1;
   font-size: 0.8rem;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 600px) {

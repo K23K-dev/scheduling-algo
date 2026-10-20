@@ -19,7 +19,8 @@
 .historyActions button,
 .bottomActions button,
 .learningActions button {
-  min-height: 2.5rem;
+  min-width: var(--control-size);
+  min-height: var(--control-size);
   padding: 0.5rem 0.75rem;
   border: 1px solid #465863;
   border-radius: 4px;
@@ -66,7 +67,8 @@
 .legend {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
   margin: 0 1.4rem 0.4rem;
   font-family: var(--mono);
   font-size: 0.65rem;
@@ -82,6 +84,13 @@
   font-style: normal;
 }
 
+.toolStatus {
+  margin: 0 1.4rem 0.65rem;
+  color: #baccc6;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
 .cell {
   padding: 0;
 }
@@ -89,6 +98,7 @@
 .cellButton {
   display: block;
   width: 100%;
+  min-width: var(--timeline-cell-width);
   height: 3.1rem;
   padding: 0;
   border: 0;
@@ -170,6 +180,12 @@
   font-size: 0.73rem;
 }
 
+.checkHelp,
+.bottomActions p,
+.legend {
+  overflow-wrap: anywhere;
+}
+
 .attemptStatus { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .assisted {
   padding: 0.2rem 0.5rem;
@@ -184,6 +200,7 @@
 @media (max-width: 600px) {
   .toolbar,
   .legend,
+  .toolStatus,
   .checkHelp {
     margin-inline: 1rem;
   }

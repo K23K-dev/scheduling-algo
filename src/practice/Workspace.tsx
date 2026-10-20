@@ -15,7 +15,7 @@ export function ProcessTable({
         <h2 id="processes-title"><span className={styles.step}>02</span> Processes</h2>
         <span className={styles.smallTag}>CPU → I/O → CPU</span>
       </div>
-      <div className={styles.processTableScroll}>
+      <div className={styles.processTableScroll} role="region" aria-label="Scrollable process inputs" tabIndex={0}>
         <table className={styles.processTable} aria-label="Processes">
           <thead>
             <tr>

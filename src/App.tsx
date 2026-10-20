@@ -1,4 +1,4 @@
-import { useReducer, useState, type FormEvent } from 'react'
+import { useReducer, useRef, useState, type FormEvent } from 'react'
 import { createProblemSeed, generateProblem } from './scheduling/generator'
 import { getSchedulingRule } from './scheduling/rules'
 import { gradeAttempt, type GradeResult } from './scheduling/grader'
@@ -34,6 +34,7 @@ export default function App() {
   const [helpError, setHelpError] = useState<string | null>(null)
   const [solution, setSolution] = useState<SimulationResult | null>(null)
   const [assisted, setAssisted] = useState(false)
+  const revealButtonRef = useRef<HTMLButtonElement>(null)
   const activeRule = getSchedulingRule(problem.settings)
   const pendingSettings = algorithm !== problem.settings.algorithm ||
     (problem.settings.algorithm === 'round-robin' && Number(quantum) !== problem.settings.quantum) ||
@@ -141,6 +142,7 @@ export default function App() {
 
   return (
     <main className={styles.workspace}>
+      <a className={styles.skipLink} href="#worksheet-title">Skip to practice</a>
       <header className={styles.header}>
         <a href="#app-title" className={styles.brand} aria-label="Scheduling Algo home">
           <span className={styles.brandMark} aria-hidden="true"><i /><i /><i /></span>
@@ -279,6 +281,7 @@ export default function App() {
         onHint={handleHint}
         onReveal={handleReveal}
         solutionVisible={solution !== null}
+        revealButtonRef={revealButtonRef}
         assisted={assisted}
         helpError={helpError}
         onRetry={() => {
@@ -290,6 +293,7 @@ export default function App() {
         <SolutionPlayback
           problem={problem}
           solution={solution}
+          returnFocusRef={revealButtonRef}
           onClose={() => setSolution(null)}
         />
       ) : null}

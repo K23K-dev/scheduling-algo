@@ -9,7 +9,7 @@
 
 .heading button,
 .controls button {
-  min-height: 2.5rem;
+  min-height: var(--control-size);
   padding: 0.5rem 0.75rem;
   border: 1px solid #465863;
   border-radius: 4px;
@@ -78,7 +78,7 @@
   flex-basis: 100%;
   min-width: 0;
   width: 100%;
-  height: 1.5rem;
+  height: var(--control-size);
   margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
@@ -255,6 +255,7 @@
 .stateScroll {
   max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-color: #516b60 #111b20;
 }
 
@@ -292,6 +293,13 @@
 .remaining {
   font-family: var(--mono);
   font-size: 0.7rem;
+}
+
+.introduction,
+.queueHelp,
+.stateHelp,
+.queues article {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 650px) {

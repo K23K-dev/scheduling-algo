@@ -353,6 +353,120 @@ describe('worksheet drag editing', () => {
 })
 
 describe('worksheet keyboard editing', () => {
+  test.each([
+    ['1', 'P1'],
+    ['2', 'P2'],
+    ['3', 'P3'],
+    ['i', 'Idle'],
+    ['e', 'Erase'],
+  ])('selects %s without changing the attempt or leaving the focused cell', (key, tool) => {
+    render(<Harness />)
+    const target = cell('cpu', 0)
+    target.focus()
+    const saved = screen.getByLabelText('Saved attempt').textContent
+
+    expect(fireEvent.keyDown(target, { key })).toBe(false)
+
+    expect(target).toHaveFocus()
+    expect(screen.getByRole('button', { name: tool })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(`Selected tool: ${tool}.`)).toHaveAttribute('aria-live', 'polite')
+    expect(screen.getByLabelText('Saved attempt').textContent).toBe(saved)
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  test.each(['Enter', ' '])('lets native %s activation apply the selected tool once', (key) => {
+    render(<Harness />)
+    const target = cell('cpu', 0)
+    target.focus()
+    fireEvent.keyDown(target, { key: '2' })
+
+    // jsdom does not synthesize the browser's native button click from key events.
+    // The key must remain uncanceled; its eventual click performs the edit.
+    expect(fireEvent.keyDown(target, { key })).toBe(true)
+    expect(fireEvent.keyUp(target, { key })).toBe(true)
+    expect(cell('cpu', 0)).toHaveFocus()
+    fireEvent.click(target, { detail: 0 })
+    expect(cell('cpu', 0, 'P2')).toHaveFocus()
+
+    fireEvent.keyDown(target, { key: 'z', ctrlKey: true })
+    expect(cell('cpu', 0)).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  test('uses one worksheet tab stop and returns region focus to the last focused cell', () => {
+    render(<Harness />)
+    const region = worksheetRegion()
+    expect(region).toHaveAttribute('tabindex', '-1')
+    region.focus()
+    expect(cell('cpu', 0)).toHaveFocus()
+
+    fireEvent.keyDown(cell('cpu', 0), { key: 'End' })
+    expect(cell('cpu', 39)).toHaveFocus()
+    fireEvent.keyDown(cell('cpu', 39), { key: 'ArrowDown' })
+    expect(cell('io', 39)).toHaveFocus()
+    region.focus()
+    expect(cell('io', 39)).toHaveFocus()
+    fireEvent.keyDown(cell('io', 39), { key: 'Home' })
+    expect(cell('io', 0)).toHaveFocus()
+    expect(within(region).getAllByRole('button').filter((button) => button.tabIndex === 0))
+      .toEqual([cell('io', 0)])
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  test('keeps a keyboard-focused cell visible beside the sticky resource label', () => {
+    render(<Harness />)
+    const region = worksheetRegion()
+    const label = within(region).getByRole('rowheader', { name: 'CPU' })
+    const next = cell('cpu', 1)
+    vi.spyOn(region, 'getBoundingClientRect').mockReturnValue({ left: 100, right: 600 } as DOMRect)
+    vi.spyOn(label, 'getBoundingClientRect').mockReturnValue({ right: 180 } as DOMRect)
+    vi.spyOn(next, 'getBoundingClientRect').mockReturnValue({ left: 160, right: 190 } as DOMRect)
+    cell('cpu', 0).focus()
+    region.scrollLeft = 300
+
+    fireEvent.keyDown(cell('cpu', 0), { key: 'ArrowRight' })
+
+    expect(next).toHaveFocus()
+    expect(region.scrollLeft).toBe(272)
+  })
+
+  test.each(['ctrlKey', 'metaKey', 'altKey', 'shiftKey'])(
+    'does not capture tool-selection shortcuts with %s',
+    (modifier) => {
+      render(<Harness />)
+      const target = cell('cpu', 0)
+      target.focus()
+
+      expect(fireEvent.keyDown(target, { key: '2', [modifier]: true })).toBe(true)
+      expect(screen.getByRole('button', { name: 'P1' })).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+    },
+  )
+
+  test.each(['input', 'textarea', 'select', 'contenteditable'])(
+    'leaves %s input and its native undo alone',
+    (type) => {
+      render(<Harness />)
+      fireEvent.click(cell('cpu', 0))
+      const input = document.createElement(type === 'contenteditable' ? 'div' : type)
+      if (type === 'contenteditable') input.setAttribute('contenteditable', 'true')
+      worksheetRegion().append(input)
+
+      expect(fireEvent.keyDown(input, { key: '2' })).toBe(true)
+      expect(fireEvent.keyDown(input, { key: 'z', ctrlKey: true })).toBe(true)
+      expect(screen.getByRole('button', { name: 'P1' })).toHaveAttribute('aria-pressed', 'true')
+      expect(cell('cpu', 0, 'P1')).toBeVisible()
+    },
+  )
+
+  test('does not capture composing text or tool shortcuts outside the worksheet', () => {
+    render(<Harness />)
+    expect(fireEvent.keyDown(cell('cpu', 0), { key: 'i', isComposing: true })).toBe(true)
+    expect(fireEvent.keyDown(screen.getByRole('button', { name: 'Outside worksheet' }), { key: '2' })).toBe(true)
+    expect(screen.getByRole('button', { name: 'P1' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
   test('moves focus with arrows without painting and stops at row boundaries', () => {
     render(<Harness />)
     const first = cell('cpu', 0)

@@ -6,6 +6,7 @@ import {
   type Dispatch,
   type KeyboardEvent,
   type PointerEvent,
+  type Ref,
 } from 'react'
 import { TIME_BOUNDARIES } from '../scheduling/timeline'
 import type { GradeResult } from '../scheduling/grader'
@@ -50,6 +51,7 @@ interface WorksheetProps {
   readonly onHint: (level: HintLevel) => void
   readonly onReveal: () => void
   readonly onRetry: () => void
+  readonly revealButtonRef?: Ref<HTMLButtonElement>
 }
 
 const intervals = TIME_BOUNDARIES.slice(0, TIMELINE_LENGTH)
@@ -61,7 +63,7 @@ function cellLabel(value: AttemptCell): string {
 
 export function Worksheet({
   processes, history, onEdit, onCheck, feedback, checkError, pendingSettings = false,
-  hint, helpError, assisted, solutionVisible, onHint, onReveal, onRetry,
+  hint, helpError, assisted, solutionVisible, onHint, onReveal, onRetry, revealButtonRef,
 }: WorksheetProps) {
   const [tool, setTool] = useState<AttemptCell>(processes[0].id)
   const [focused, setFocused] = useState<CellPosition>({ resource: 'cpu', index: 0 })
@@ -137,15 +139,37 @@ export function Worksheet({
     })
   }
 
+  function revealCell(button: HTMLButtonElement) {
+    const region = regionRef.current
+    if (!region) return
+    button?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+    // Native focus scrolling does not account for the sticky resource column.
+    // Measure its actual width so zoom and larger text do not hide the target.
+    const regionBounds = region.getBoundingClientRect()
+    const labelBounds = region.querySelector('tbody th')?.getBoundingClientRect()
+    const cellBounds = button.getBoundingClientRect()
+    const visibleLeft = Math.max(regionBounds.left, labelBounds?.right ?? regionBounds.left) + 8
+    const visibleRight = regionBounds.right - 8
+    if (cellBounds.left < visibleLeft) {
+      region.scrollLeft = Math.max(0, region.scrollLeft - (visibleLeft - cellBounds.left))
+    } else if (cellBounds.right > visibleRight) {
+      region.scrollLeft += cellBounds.right - visibleRight
+    }
+  }
+
   function focusCell(position: CellPosition) {
     const button = regionRef.current?.querySelector<HTMLButtonElement>(
       `button[data-resource="${position.resource}"][data-index="${position.index}"]`,
     )
     button?.focus({ preventScroll: true })
-    button?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
   }
 
   function handleKeys(event: KeyboardEvent<HTMLElement>) {
+    const target = event.target
+    if (event.nativeEvent.isComposing || (
+      target instanceof HTMLElement &&
+      (target.isContentEditable || target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]'))
+    )) return
     if (event.key === 'Escape') {
       cancelDrag()
       return
@@ -154,14 +178,26 @@ export function Worksheet({
     if ((event.ctrlKey || event.metaKey) && !event.altKey && (key === 'z' || key === 'y')) {
       event.preventDefault()
       cancelDrag()
+      // History clears help panels; keep focus on a cell if its current
+      // heading or button is about to disappear with that feedback.
+      if (target instanceof HTMLElement && !regionRef.current?.contains(target)) focusCell(focused)
       onEdit({ type: key === 'y' || event.shiftKey ? 'redo' : 'undo' })
       return
     }
     if (event.ctrlKey || event.metaKey || event.altKey) return
-    if (!(event.target instanceof HTMLButtonElement) || !event.target.dataset.resource) return
+    if (!event.shiftKey) {
+      const process = /^[1-3]$/.test(key) ? processes[Number(key) - 1] : undefined
+      if (process || key === 'i' || key === 'e') {
+        event.preventDefault()
+        cancelDrag()
+        setTool(process ? process.id : key === 'i' ? 'idle' : null)
+        return
+      }
+    }
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.resource) return
     const position = {
-      resource: event.target.dataset.resource as Resource,
-      index: Number(event.target.dataset.index),
+      resource: target.dataset.resource as Resource,
+      index: Number(target.dataset.index),
     }
     let next: CellPosition | null = null
     switch (event.key) {
@@ -204,7 +240,7 @@ export function Worksheet({
       onKeyDown={handleKeys}
     >
       <div className={styles.panelHeading}>
-        <h2 id="worksheet-title"><span className={styles.step}>03</span> Your timeline</h2>
+        <h2 id="worksheet-title" tabIndex={-1}><span className={styles.step}>03</span> Your timeline</h2>
         <div className={editor.attemptStatus}>
           {assisted ? <span className={editor.assisted} aria-live="polite">Assisted attempt</span> : null}
           <span className={styles.previewTag} aria-live="polite">{answered} / 80 filled</span>
@@ -214,14 +250,16 @@ export function Worksheet({
         Choose a process, Idle, or Erase. Click a block or drag across one row to assign a range.
       </p>
       <div className={editor.toolbar}>
-        <div className={editor.palette} role="group" aria-label="Assignment tool">
-          {processes.map(({ id }) => (
+        <div className={editor.palette} role="group" aria-label="Assignment tool" aria-describedby="keyboard-help">
+          {processes.map(({ id }, index) => (
             <button
               key={id}
               type="button"
               className={`${styles.processBadge} ${editor.tool}`}
               data-process={id}
               aria-pressed={tool === id}
+              aria-keyshortcuts={String(index + 1)}
+              title={`Select ${id} (${index + 1})`}
               onClick={() => { cancelDrag(); setTool(id) }}
             >{id}</button>
           ))}
@@ -229,12 +267,16 @@ export function Worksheet({
             type="button"
             className={`${editor.tool} ${editor.idleTool}`}
             aria-pressed={tool === 'idle'}
+            aria-keyshortcuts="I"
+            title="Select Idle (I)"
             onClick={() => { cancelDrag(); setTool('idle') }}
           >Idle</button>
           <button
             type="button"
             className={editor.tool}
             aria-pressed={tool === null}
+            aria-keyshortcuts="E"
+            title="Select Erase (E)"
             onClick={() => { cancelDrag(); setTool(null) }}
           >Erase</button>
         </div>
@@ -244,6 +286,9 @@ export function Worksheet({
           <button type="button" disabled={answered === 0} onClick={() => onEdit({ type: 'clear' })}>Clear attempt</button>
         </div>
       </div>
+      <p className={editor.toolStatus} aria-live="polite" aria-atomic="true">
+        Selected tool: {tool === null ? 'Erase' : cellLabel(tool)}.
+      </p>
       <div className={editor.legend}>
         <span><i className={styles.emptySwatch} aria-hidden="true">·</i> Unanswered</span>
         <span>First block: [0, 1)</span>
@@ -251,9 +296,13 @@ export function Worksheet({
       <div
         ref={regionRef}
         className={styles.timelineScroll}
-        tabIndex={0}
+        tabIndex={-1}
         role="region"
         aria-label="Scrollable CPU and I/O worksheet"
+        aria-describedby="keyboard-help"
+        onFocus={(event) => {
+          if (event.target === event.currentTarget) focusCell(focused)
+        }}
         onPointerMove={moveDrag}
         onPointerUp={finishDrag}
         onPointerCancel={(event) => { if (dragRef.current?.pointerId === event.pointerId) cancelDrag() }}
@@ -300,7 +349,10 @@ export function Worksheet({
                         data-preview={preview || undefined}
                         data-feedback={flagged || undefined}
                         tabIndex={focused.resource === resource && focused.index === time ? 0 : -1}
-                        onFocus={() => setFocused({ resource, index: time })}
+                        onFocus={(event) => {
+                          setFocused({ resource, index: time })
+                          revealCell(event.currentTarget)
+                        }}
                         onPointerDown={(event) => startDrag(event, { resource, index: time })}
                         onClick={(event) => {
                           // A physical drag already committed on pointerup. Native
@@ -334,7 +386,7 @@ export function Worksheet({
       </div>
       <div className={editor.learningActions}>
         <button type="button" onClick={() => { cancelDrag(); onHint(1) }}>Hint</button>
-        <button type="button" disabled={solutionVisible} onClick={() => { cancelDrag(); onReveal() }}>
+        <button ref={revealButtonRef} type="button" disabled={solutionVisible} onClick={() => { cancelDrag(); onReveal() }}>
           Reveal solution
         </button>
         <button type="button" onClick={() => { cancelDrag(); onRetry() }}>Retry same problem</button>
@@ -349,9 +401,18 @@ export function Worksheet({
         error={checkError}
         onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
       />
-      <HintPanel hint={drag === null ? hint : null} error={helpError} onHint={onHint} />
+      <div hidden={drag !== null}>
+        <HintPanel
+          hint={hint}
+          error={helpError}
+          onHint={onHint}
+          onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
+        />
+      </div>
       <div className={styles.worksheetFooter} id="keyboard-help">
-        <p>Arrow keys move · Enter/Space assign · Delete erases · Ctrl/Cmd+Z undoes</p>
+        <p>1/2/3 choose a process · I selects Idle · E selects Erase</p>
+        <p>Arrows move · Home/End jump along a row · Enter/Space assign · Delete/Backspace erase</p>
+        <p>Ctrl/Cmd+Z undoes · Ctrl/Cmd+Shift+Z redoes. Shortcuts work while focus is in this worksheet.</p>
         <p>On touch screens, tap to assign and swipe to scroll.</p>
       </div>
     </section>

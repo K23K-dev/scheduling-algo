@@ -54,7 +54,7 @@ afterEach(() => {
 
 describe('solution playback', () => {
   test('opens paused at boundary zero with a separate complete, read-only reference', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     const { solution } = setup()
 
     expect(screen.getByRole('heading', { name: '04 Solution playback' })).toBeVisible()
@@ -232,9 +232,10 @@ describe('solution playback', () => {
   })
 })
 
+// Focus also queues jsdom selection-change timeouts; count only playback intervals.
 describe('playback timers', () => {
   test('plays one interval each second, pauses, and resumes from the same boundary', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     setup()
     click('Play')
     expect(vi.getTimerCount()).toBe(1)
@@ -252,7 +253,7 @@ describe('playback timers', () => {
   })
 
   test('automatically stops at 40 and never advances beyond the worksheet', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     setup()
     seek(39)
     click('Play')
@@ -271,7 +272,7 @@ describe('playback timers', () => {
     ['Go to end', 40],
     ['slider', 12],
   ])('pauses when navigating with %s', (control, expected) => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     setup()
     seek(3)
     click('Play')
@@ -284,7 +285,7 @@ describe('playback timers', () => {
   })
 
   test('pauses on window blur and stays paused after focus returns', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     setup()
     click('Play')
     fireEvent.blur(window)
@@ -296,7 +297,7 @@ describe('playback timers', () => {
   })
 
   test('pauses when the page becomes hidden and does not restart on return', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     setup()
     const hidden = vi.spyOn(document, 'hidden', 'get')
     click('Play')
@@ -311,7 +312,7 @@ describe('playback timers', () => {
   })
 
   test('hiding the solution calls the parent and clears playback immediately', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     const { onClose } = setup()
     click('Play')
     click('Hide solution')
@@ -320,7 +321,7 @@ describe('playback timers', () => {
   })
 
   test('cleans up on unmount and starts paused when reopened', () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     const solution = simulate(problem)
     function Harness() {
       const [visible, setVisible] = useState(true)

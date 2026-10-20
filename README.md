@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** All five algorithms support generated problems, scheduling rules, editable 40-block CPU/I/O timelines with undo/redo, answer checking, progressive hints, and solution playback. Priority supports both preemptive and non-preemptive modes. Retry keeps the same problem; persistence is not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** All five algorithms support generated problems, scheduling rules, editable 40-block CPU/I/O timelines with undo/redo, answer checking, progressive hints, and solution playback. Priority supports both preemptive and non-preemptive modes. Keyboard navigation and touch layouts are supported. Practice stays in the current page session; browser storage is outside the release scope. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -198,7 +198,6 @@ Separate scheduling logic from the interface:
 | Explanations | Turn recorded events and decisions into readable feedback |
 | Metrics | Derive timings from the simulated state history |
 | Practice interface | Controls, timeline editing, feedback, and solution playback |
-| Persistence | Save the current problem and attempt in browser storage |
 
 The simulator should be a pure function: the same problem and rules produce the same timelines and event history. Randomness belongs in the generator.
 
@@ -250,7 +249,9 @@ The worksheet starts with 40 unanswered cells per resource and boundary labels 0
 
 **Fill remaining empty cells with Idle** preserves existing assignments. **Clear attempt** erases both rows. Each is a single undoable edit. Undo/redo retains up to 100 changes, ignores no-op assignments, and drops redo history only after a changed edit. History never crosses into a new problem. The immutable editing reducer is in `src/practice/attempt.ts`; answers are independent of the reference simulator, and even incorrect assignments are allowed without feedback.
 
-Keyboard users can Tab into the worksheet, move between cells with arrow keys, jump to a row's first/last block with Home/End, assign the selected tool with Enter/Space, and erase with Delete/Backspace. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. These shortcuts apply only inside the worksheet. Small screens preserve readable cell widths and scroll horizontally. Every cell exposes its resource, interval, and assignment as an accessible label. The filled-cell count does not indicate correctness. Attempts currently last for the open page session.
+Keyboard users can choose **Skip to practice** at the start of the page. Tab moves through the tools and enters the timeline at its last focused cell; the other 79 cells do not add tab stops. Arrow keys move between cells, Home/End jump to the row's first/last block, Enter/Space assign the selected tool, and Delete/Backspace erase. **1/2/3** select the corresponding process, **I** selects Idle, and **E** selects Erase without changing any answers. The selected tool is shown and announced. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. Shortcuts apply only while focus is inside the worksheet and do not intercept text entry or composition.
+
+Focused cells scroll into view clear of the sticky resource labels. Every cell exposes its resource, interval, and assignment as an accessible label. Small screens and touch devices use timeline cells at least 44px wide and controls at least 44px tall; horizontal scrolling keeps the full 40 intervals readable. Headers and action groups wrap, and process-input and playback-state tables have labeled, keyboard-accessible scroll areas. Mobile input text stays at least 16px. The filled-cell count does not indicate correctness. Reloading or closing the page ends the attempt; local saving is intentionally omitted.
 
 **Check answer** compares the current attempt against the applied settings, even while other settings are still a draft. It reports only the earliest wrong or unanswered interval, grouping CPU and I/O feedback when both need attention there. Each explanation names the expected assignment and explains the decision using the simulator's recorded events, process states, remaining work, and dispatch candidates. Unanswered cells remain different from intentional Idle cells, including the unused tail. A complete matching attempt receives a success message.
 
@@ -266,13 +267,13 @@ The pure grader is in `src/scheduling/grader.ts`. It validates attempts, uses th
 2. **More detail** shows the relevant boundary events, candidates and remaining work, or I/O request order, without explicitly choosing an assignment.
 3. **Show this assignment** names the answer and explains why it runs.
 
-The first two stages leave the attempt unassisted. Revealing an assignment or the full solution marks it **Assisted attempt**. Editing clears the current hint so the next request considers the revised answers. Hints never fill cells or change undo history; a correct attempt receives a success message instead. The pure `getHint` helper in `src/scheduling/hints.ts` uses the grader's earliest mismatch and the simulator's recorded decisions, sharing explanations with checking and playback.
+The first two stages leave the attempt unassisted. Revealing an assignment or the full solution marks it **Assisted attempt**. Each requested hint receives keyboard focus, and **Focus CPU/I/O at time …** jumps to the relevant cell without editing it. Editing clears the current hint so the next request considers the revised answers. Hints never fill cells or change undo history; a correct attempt receives a success message instead. The pure `getHint` helper in `src/scheduling/hints.ts` uses the grader's earliest mismatch and the simulator's recorded decisions, sharing explanations with checking and playback.
 
 **Reveal solution** opens a separate, read-only reference timeline beneath the editable worksheet. Playback starts paused. Use **Previous step**, **Next step**, the **Playback time** slider, **Back to start**, or **Go to end** to inspect any boundary. **Play** advances once per second; navigation, hiding the solution, leaving the window, or hiding the tab pauses it. It stops at time 40.
 
 Each interval shows CPU and I/O assignments with explanations, queues after dispatch, and process states with remaining CPU/I/O work. Round robin includes remaining quantum; priority includes process priorities. The timeline scrolls horizontally to follow the selected boundary. At time 40, playback shows final bookkeeping and events without inventing a 41st interval.
 
-The learner's answers and undo/redo remain available while the solution is open. **Hide solution** closes playback but retains the assisted label. Clearing answers also retains that label because it is undoable. Applying different settings closes playback and clears hints; if the workload stays the same, answers, history, and assisted status remain. Draft settings, invalid submissions, and canceled replacements preserve the current help.
+The learner's answers and undo/redo remain available while the solution is open. Revealing playback moves focus to its heading. **Hide solution** closes playback, returns focus to **Reveal solution**, and retains the assisted label. Endpoint navigation keeps keyboard focus on the time slider when its button becomes disabled. Clearing answers also retains that label because it is undoable. Applying different settings closes playback and clears hints; if the workload stays the same, answers, history, and assisted status remain. Draft settings, invalid submissions, and canceled replacements preserve the current help.
 
 **Retry same problem** keeps the seed, processes, and applied settings while clearing answers, history, hints, playback, and the assisted label. **New problem** or an accepted replacement also resets this practice state. Tests cover progressive disclosure, all policies, terminal boundary 40, playback timers and cleanup, assistance tracking, retry, settings changes, and failure recovery.
 
@@ -320,7 +321,6 @@ GitHub Actions runs installation, linting, type checking, tests, and a productio
 - Add SJF, SRTF, and both priority modes.
 - Add rules panels, progressive hints, and solution playback.
 - Add keyboard support and verify narrow-screen behavior.
-- Save and restore the current attempt locally.
 - Expand generated scenarios to exercise algorithm-specific decisions.
 
 **Exit condition:** Every listed algorithm supports the full practice loop with consistent grading.
@@ -354,11 +354,12 @@ Essential cases:
 
 Also check invariants: no process uses CPU and I/O simultaneously, no blocked process uses the CPU, executed durations equal the input bursts, no work starts before arrival, and every process completes exactly once.
 
-Verify the full interface flow from generation through editing, checking, correction, reveal, retry, and local restoration.
+Verify the full interface flow from generation through editing, checking, correction, reveal, and retry, including keyboard focus and narrow-screen scrolling.
 
 ## Outside the initial scope
 
 - Accounts, cloud synchronization, leaderboards, or multiplayer.
+- Saving or restoring attempts across page reloads.
 - Multiple CPUs or multiple I/O devices.
 - Context-switch costs, priority aging, or arbitrary sequences of many bursts.
 - A real operating-system scheduler or performance benchmark.

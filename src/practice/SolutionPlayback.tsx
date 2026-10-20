@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type RefObject } from 'react'
 import { explainInterval } from '../scheduling/grader'
 import { getSchedulingRule } from '../scheduling/rules'
 import { TIME_BOUNDARIES } from '../scheduling/timeline'
@@ -18,6 +18,7 @@ interface SolutionPlaybackProps {
   readonly problem: Problem
   readonly solution: SimulationResult
   readonly onClose: () => void
+  readonly returnFocusRef?: RefObject<HTMLButtonElement | null>
 }
 
 const intervals = TIME_BOUNDARIES.slice(0, TIMELINE_LENGTH)
@@ -91,10 +92,15 @@ function eventLabel(event: SimulationEvent): string {
   }
 }
 
-export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybackProps) {
+export function SolutionPlayback({ problem, solution, onClose, returnFocusRef }: SolutionPlaybackProps) {
   const [playback, setPlayback] = useState({ time: 0, playing: false })
   const timelineRef = useRef<HTMLDivElement>(null)
   const currentBoundaryRef = useRef<HTMLSpanElement>(null)
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const sliderRef = useRef<HTMLInputElement>(null)
+  const playButtonRef = useRef<HTMLButtonElement>(null)
+  const playOwnedFocusRef = useRef(false)
+  const closingRef = useRef(false)
   const sliderId = useId()
   const { time, playing } = playback
   const boundary = solution.boundaries[time]
@@ -104,8 +110,19 @@ export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybac
     : null
 
   useEffect(() => {
+    const returnTarget = returnFocusRef?.current
+    headingRef.current?.focus()
+    return () => {
+      // Only explicit hiding returns to Reveal; applying settings keeps focus
+      // on the settings control that caused the playback to be removed.
+      if (closingRef.current && returnTarget?.isConnected) returnTarget.focus()
+    }
+  }, [returnFocusRef])
+
+  useEffect(() => {
     if (!playing) return
     const timer = window.setInterval(() => {
+      playOwnedFocusRef.current = document.activeElement === playButtonRef.current
       setPlayback((current) => {
         const next = Math.min(TIMELINE_LENGTH, current.time + 1)
         return { time: next, playing: next < TIMELINE_LENGTH }
@@ -127,6 +144,12 @@ export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybac
   }, [])
 
   useEffect(() => {
+    // Recover only focus lost by Play becoming disabled, not intentional focus
+    // elsewhere in the worksheet or on the page background.
+    if (time === TIMELINE_LENGTH && playOwnedFocusRef.current && (
+      document.activeElement === playButtonRef.current || document.activeElement === document.body
+    )) sliderRef.current?.focus({ preventScroll: true })
+    playOwnedFocusRef.current = false
     // Follow the selected boundary horizontally without moving the page away
     // from playback controls or the explanation the learner is reading.
     const region = timelineRef.current
@@ -142,10 +165,14 @@ export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybac
   }, [time])
 
   function navigate(next: number) {
-    setPlayback({ time: Math.min(TIMELINE_LENGTH, Math.max(0, next)), playing: false })
+    const nextTime = Math.min(TIMELINE_LENGTH, Math.max(0, next))
+    // Endpoint buttons disable themselves; keep keyboard navigation available.
+    if (nextTime === 0 || nextTime === TIMELINE_LENGTH) sliderRef.current?.focus({ preventScroll: true })
+    setPlayback({ time: nextTime, playing: false })
   }
 
   function close() {
+    closingRef.current = true
     setPlayback((current) => ({ ...current, playing: false }))
     onClose()
   }
@@ -153,7 +180,7 @@ export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybac
   return (
     <section className={`${workspace.panel} ${styles.playback}`} aria-labelledby="playback-title">
       <div className={`${workspace.panelHeading} ${styles.heading}`}>
-        <h2 id="playback-title"><span className={workspace.step}>04</span> Solution playback</h2>
+        <h2 id="playback-title" ref={headingRef} tabIndex={-1}><span className={workspace.step}>04</span> Solution playback</h2>
         <button type="button" onClick={close}>Hide solution</button>
       </div>
       <div className={styles.introduction}>
@@ -163,6 +190,7 @@ export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybac
       <div className={styles.controls} role="group" aria-label="Playback controls">
         <button
           type="button"
+          ref={playButtonRef}
           className={styles.playButton}
           disabled={time === TIMELINE_LENGTH}
           onClick={() => setPlayback((current) => ({
@@ -180,6 +208,7 @@ export function SolutionPlayback({ problem, solution, onClose }: SolutionPlaybac
         <span className={styles.time} aria-live={playing ? 'off' : 'polite'}>Time {time} / {TIMELINE_LENGTH}</span>
         <input
           id={sliderId}
+          ref={sliderRef}
           type="range"
           min={0}
           max={TIMELINE_LENGTH}
