@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The React, TypeScript, and Vite foundation is in place, with development tools and automated checks. Scheduling and practice features are not implemented yet. The defaults below remain proposed product decisions; course-specific behavior is identified explicitly.
+**Status:** The app foundation and scheduling data model are in place, with input validation, event-ordering and tie-breaking helpers, and automated tests. The simulator and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -203,6 +203,16 @@ Separate scheduling logic from the interface:
 The simulator should be a pure function: the same problem and rules produce the same timelines and event history. Randomness belongs in the generator.
 
 Keep editable answers separate from the reference solution. Record enough state at each boundary to explain a choice without rerunning a different interpretation of the algorithm.
+
+### Scheduling model
+
+The React-independent modules in `src/scheduling/` define the contracts for the upcoming simulator:
+
+- `Problem` holds process inputs, algorithm settings, an unsigned 32-bit seed, and rules/generator versions. `parseProblem` accepts unknown data and returns either a detached, validated problem or errors with field paths. It requires positive integer bursts and quantum, nonnegative integer arrivals, and unique IDs such as P1 and P2. Numeric fields must be safe integers. Priority can be any safe integer, with smaller values ranking higher; it is required only for priority scheduling.
+- Structural validation deliberately allows small fixtures, staggered arrivals, and values outside the generator's proposed ranges. It does **not** establish that a workload finishes by time 40; the simulator will check that separately. Unsupported versions and irrelevant settings, such as a quantum on SJF, are rejected.
+- An `Attempt` contains only editable CPU/I/O rows: `null` means unanswered, `"idle"` means intentionally Idle, and a process ID means an assignment. `parseAttempt` checks two 40-cell rows and valid process references, without grading the learner's choices. Reference timelines cannot contain unanswered cells.
+- Process states distinguish not arrived, ready, running, waiting for I/O, performing I/O, and completed. Boundary snapshots retain process work, ordered queues, resource assignments, and decision events. Snapshots at times 0–39 describe the state after dispatch and before execution; a terminal snapshot at 40 records final bookkeeping without another interval.
+- Rule helpers describe boundary phases, numeric process ordering, launch-order and ready-entry tie-breaks, strict preemption, and completion-before-quantum-expiration behavior. Ready-entry timestamps and actual FIFO queue positions remain separate. The simulator's future result distinguishes completion within the worksheet from reaching its limit with unfinished work.
 
 ## Local development
 
