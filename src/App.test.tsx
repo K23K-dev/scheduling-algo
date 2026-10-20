@@ -38,10 +38,6 @@ function expectActiveRule(settings: SchedulingSettings) {
   ).toBeVisible()
 }
 
-function expectSeed(seed: number) {
-  expect(screen.getByText('Seed')).toHaveTextContent(`Seed ${seed}`)
-}
-
 function selectRoundRobin(quantum = '2') {
   fireEvent.change(screen.getByRole('combobox', { name: 'Algorithm' }), {
     target: { value: 'round-robin' },
@@ -84,24 +80,19 @@ afterEach(() => {
 })
 
 describe('practice workspace', () => {
-  test('opens a generated course FCFS problem with its inputs and project link', () => {
+  test('opens a generated course FCFS problem with its inputs', () => {
     render(<App />)
 
     const workspace = within(screen.getByRole('main'))
     expect(
       workspace.getByRole('heading', { level: 1, name: 'Scheduling Algo' }),
     ).toBeVisible()
-    expect(workspace.getByRole('link', { name: 'View the project' })).toHaveAttribute(
-      'href',
-      'https://github.com/K23K-dev/scheduling-algo',
-    )
     expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveValue(
       'fcfs-course',
     )
     expect(screen.queryByRole('spinbutton', { name: 'Time quantum' })).not.toBeInTheDocument()
     expectActiveRule(fcfs)
     expectProcessTable(generator.generateProblem(42, fcfs))
-    expectSeed(42)
   })
 
   test('makes all five scheduling algorithms available', () => {
@@ -158,7 +149,6 @@ describe('practice workspace', () => {
       }),
     ).not.toBeInTheDocument()
     expectProcessTable(original)
-    expectSeed(42)
   })
 
   test('applies round robin to the existing workload when it still fits', () => {
@@ -171,7 +161,6 @@ describe('practice workspace', () => {
 
     expectActiveRule(rr)
     expectProcessTable(original)
-    expectSeed(42)
     expect(
       screen.getAllByLabelText(/^(CPU|I\/O), time \d+ to \d+: unanswered$/),
     ).toHaveLength(80)
@@ -181,13 +170,11 @@ describe('practice workspace', () => {
     vi.mocked(generator.createProblemSeed).mockReturnValueOnce(607).mockReturnValue(99)
     render(<App />)
     expectProcessTable(generator.generateProblem(607, fcfs))
-
     selectRoundRobin()
     fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
 
     expectActiveRule(rr)
     expectProcessTable(generator.generateProblem(99, rr))
-    expectSeed(99)
     expect(screen.getByRole('status')).toHaveTextContent(
       /previous workload would exceed 40 blocks/i,
     )
@@ -204,7 +191,6 @@ describe('practice workspace', () => {
     const settings = { algorithm: 'round-robin', quantum: 3 } as const
     expectActiveRule(settings)
     expectProcessTable(generator.generateProblem(99, settings))
-    expectSeed(99)
     expect(
       screen.getAllByLabelText(/^(CPU|I\/O), time \d+ to \d+: unanswered$/),
     ).toHaveLength(80)
@@ -223,7 +209,6 @@ describe('practice workspace', () => {
 
     expectActiveRule({ algorithm: 'round-robin', quantum: 4 })
     expectProcessTable(generator.generateProblem(42, fcfs))
-    expectSeed(42)
   })
 
   test('returns to FCFS without requiring or applying a hidden quantum', () => {
@@ -231,7 +216,6 @@ describe('practice workspace', () => {
     selectRoundRobin()
     fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
     expectActiveRule(rr)
-
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Time quantum' }), {
       target: { value: '' },
     })
@@ -260,7 +244,6 @@ describe('practice workspace', () => {
       )
       expectActiveRule(fcfs)
       expectProcessTable(original)
-      expectSeed(42)
       fireEvent.click(screen.getByRole('button', { name: 'New problem' }))
       expectActiveRule(fcfs)
       expectProcessTable(original)
@@ -283,7 +266,6 @@ describe('attempt lifecycle', () => {
 
     expectActiveRule(rr)
     expectProcessTable(generator.generateProblem(42, fcfs))
-    expectSeed(42)
     expect(getCell('CPU', 0, 'P1')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
     expect(getCell('I/O', 1, 'P1')).toBeVisible()
@@ -301,7 +283,7 @@ describe('attempt lifecycle', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
 
     expectActiveRule(fcfs)
-    expectSeed(42)
+    expectProcessTable(generator.generateProblem(42, fcfs))
     expect(getCell('CPU', 0, 'P1')).toBeVisible()
     expect(getCell('I/O', 1)).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
@@ -324,7 +306,7 @@ describe('attempt lifecycle', () => {
         'Enter a whole number of at least 1.',
       )
       expectActiveRule(fcfs)
-      expectSeed(42)
+      expectProcessTable(generator.generateProblem(42, fcfs))
       expect(getCell('CPU', 0, 'P1')).toBeVisible()
       expect(getCell('I/O', 1)).toBeVisible()
       expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled()
@@ -351,7 +333,7 @@ describe('attempt lifecycle', () => {
       'This problem could not be prepared. Please try again.',
     )
     expectActiveRule(fcfs)
-    expectSeed(42)
+    expectProcessTable(generator.generateProblem(42, fcfs))
     expect(getCell('CPU', 0, 'P1')).toBeVisible()
     fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
     expect(getCell('I/O', 1, 'P1')).toBeVisible()
@@ -370,7 +352,6 @@ describe('attempt lifecycle', () => {
 
     const settings = { algorithm: 'round-robin', quantum: 3 } as const
     expectActiveRule(settings)
-    expectSeed(99)
     expectProcessTable(generator.generateProblem(99, settings))
     expectEmptyHistory()
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
@@ -397,14 +378,12 @@ describe('attempt lifecycle', () => {
     expect(screen.getByRole('alertdialog')).toHaveTextContent(/40 blocks/i)
     expect(screen.getByRole('alertdialog')).toHaveTextContent(/attempt/i)
     expectActiveRule(fcfs)
-    expectSeed(607)
     expect(getCell('CPU', 0, 'P1')).toBeVisible()
 
     fireEvent.click(dialog.getByRole('button', { name: 'Keep current problem' }))
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expectActiveRule(fcfs)
-    expectSeed(607)
     expectProcessTable(generator.generateProblem(607, fcfs))
     expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveValue('round-robin')
     expect(screen.getByRole('spinbutton', { name: 'Time quantum' })).toHaveValue(2)
@@ -429,7 +408,6 @@ describe('attempt lifecycle', () => {
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expectActiveRule(rr)
-    expectSeed(99)
     expectProcessTable(generator.generateProblem(99, rr))
     expectEmptyHistory()
     fireEvent.click(getCell('I/O', 4))
@@ -463,7 +441,7 @@ describe('attempt lifecycle', () => {
       name: 'Keep current problem',
     }))
     expectActiveRule(fcfs)
-    expectSeed(607)
+    expectProcessTable(generator.generateProblem(607, fcfs))
     fireEvent.click(screen.getByRole('button', { name: restoreWith }))
     expect(getCell('CPU', 0, 'P1')).toBeVisible()
   })

@@ -285,7 +285,6 @@ describe('checking a practice attempt', () => {
     press('New problem')
 
     expectNoFeedback()
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 99')
     expect(cell('cpu', 0)).toHaveAccessibleName('CPU, time 0 to 1: unanswered')
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
   })

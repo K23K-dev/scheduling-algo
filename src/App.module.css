@@ -1,7 +1,7 @@
 .workspace {
   width: min(100%, 94rem);
   margin-inline: auto;
-  padding: 0 clamp(1rem, 3.5vw, 3.5rem);
+  padding: 0 clamp(1rem, 3.5vw, 3.5rem) 2rem;
 }
 
 .skipLink {
@@ -32,8 +32,7 @@
 .brand,
 .sectionHeading,
 .panelHeading,
-.problemHeader,
-.footer {
+.problemHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -47,8 +46,6 @@
 .brandMark i:nth-child(2) { height: 100%; }
 .brandMark i:nth-child(3) { height: 80%; }
 .course,
-.eyebrow,
-.seed,
 .smallTag,
 .step,
 .model,
@@ -59,21 +56,18 @@
 .intervalHint { font-family: var(--mono); }
 .course { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.07em; }
 .course span { margin-inline: 0.65rem; color: #53616b; }
-.introduction { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding-block: 2.8rem 2.4rem; }
-.eyebrow { margin: 0 0 0.8rem; color: var(--accent); font-size: 0.65rem; letter-spacing: 0.16em; }
+.introduction { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding-block: 2rem 1.6rem; }
 .introduction h1 { margin: 0; font-size: clamp(2rem, 4vw, 2.75rem); line-height: 1.15; letter-spacing: -0.045em; font-weight: 620; }
-.description { margin: 0.75rem 0 0; color: var(--muted); font-size: 0.95rem; }
 .model { display: flex; align-items: center; gap: 0.85rem; font-size: 0.75rem; }
 .model span { padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); }
 .model b { color: #64747e; font-weight: 400; }
 .model span:nth-of-type(2) { color: #a8becb; border-style: dashed; }
 .controls,
 .panel { border: 1px solid var(--border); border-radius: 8px; background: var(--panel); min-width: 0; }
-.controls { padding: 1.4rem 1.5rem 0; }
+.controls { padding: 1.4rem 1.5rem; }
 .sectionHeading h2,
 .panelHeading h2 { display: flex; align-items: center; gap: 0.65rem; margin: 0; font-size: 0.93rem; font-weight: 600; }
 .step { color: #7c919d; font-size: 0.7rem; font-weight: 400; }
-.muted { color: var(--muted); font-size: 0.75rem; }
 .controlFields { display: flex; gap: 1rem; align-items: end; margin-top: 1.3rem; }
 .controlFields label { display: block; margin-bottom: 0.45rem; color: #bac5cb; font-size: 0.75rem; font-weight: 550; }
 .algorithmField { flex: 1; max-width: 26rem; min-width: 0; }
@@ -90,17 +84,15 @@
 .primaryButton span { font-size: 1.1rem; line-height: 1; }
 .secondaryButton { color: #d7e1e5; background: #1c272e; border: 1px solid #39454c; }
 .secondaryButton:hover { background: #29353d; border-color: #64747e; }
-.controlHelp { color: var(--muted); font-size: 0.73rem; margin: 0.75rem 0 1.2rem; }
+.controlHelp { color: var(--muted); font-size: 0.73rem; margin: 0.75rem 0 0; }
 .controlHelp p { margin: 0.2rem 0; }
-.notice { display: flex; align-items: baseline; gap: 0.6rem; margin: 0 -1.5rem; padding: 0.85rem 1.5rem; border-top: 1px solid var(--border); color: #b0c2bc; background: #16201f; border-radius: 0 0 8px 8px; font-size: 0.76rem; }
+.notice { display: flex; align-items: baseline; gap: 0.6rem; margin: 1rem -1.5rem -1.4rem; padding: 0.85rem 1.5rem; border-top: 1px solid var(--border); color: #b0c2bc; background: #16201f; border-radius: 0 0 8px 8px; font-size: 0.76rem; }
 .notice > span { height: 5px; width: 5px; flex-shrink: 0; border-radius: 50%; background: var(--accent); }
 .error { color: #ffb9b1; font-size: 0.8rem; }
 .problemHeader { padding: 1.7rem 0 0.85rem; }
 .problemHeader p { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6rem; margin: 0; font-size: 0.75rem; color: var(--muted); }
 .problemHeader b { font-weight: 500; color: #d0dcdf; padding-left: 0.4rem; }
 .liveDot { background: var(--accent); width: 5px; height: 5px; border-radius: 50%; }
-.seed { font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
-.seed span { color: #b8c6ce; margin-left: 0.3rem; }
 .problemLayout { display: grid; grid-template-columns: 1.08fr 1fr; gap: 1rem; align-items: start; }
 .panelHeading { flex-wrap: wrap; padding: 1.25rem 1.4rem; }
 .smallTag { color: var(--muted); font-size: 0.65rem; white-space: nowrap; }
@@ -157,12 +149,6 @@
 .timeline tbody tr + tr .timelineCell { border-top: 0; background: #131e25; }
 .timelineCell.majorBoundary { border-left: 1px solid #52616a; }
 .timelineCell:last-child { border-right-color: #52616a; }
-.worksheetFooter { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; padding: 0.85rem 1.4rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.7rem; }
-.worksheetFooter p { margin: 0; }
-.worksheetFooter span { padding-right: 0.35rem; }
-.footer { margin-top: 2rem; padding-block: 1.25rem 1.8rem; border-top: 1px solid var(--border); color: #8397a3; font-size: 0.7rem; }
-.footer a { display: inline-flex; align-items: center; gap: 0.35rem; min-height: var(--control-size); color: #b7cbc6; text-decoration: none; }
-.footer a:hover { text-decoration: underline; text-underline-offset: 0.25em; }
 
 .replacementDialog {
   width: min(30rem, calc(100% - 2rem));
@@ -179,7 +165,6 @@
 .replacementDialog p { margin: 1rem 0 1.5rem; color: var(--muted); font-size: 0.85rem; }
 .replacementDialog .actions { flex-wrap: wrap; }
 
-.description,
 .controlHelp,
 .notice,
 .error,
@@ -187,7 +172,6 @@
 .ruleList dd,
 .sharedRules,
 .worksheetDescription,
-.worksheetFooter,
 .replacementDialog p {
   overflow-wrap: anywhere;
 }
@@ -210,16 +194,15 @@
   .brand { font-size: 0.8rem; gap: 0.5rem; }
   .course { font-size: 0.58rem; }
   .course span { margin-inline: 0.2rem; }
-  .introduction { padding-block: 2rem 1.75rem; }
-  .controls { padding: 1.1rem 1rem 0; }
+  .introduction { padding-block: 1.5rem; }
+  .controls { padding: 1.1rem 1rem; }
   .sectionHeading { flex-wrap: wrap; gap: 0.35rem; }
-  .sectionHeading .muted { padding-left: 1.75rem; font-size: 0.67rem; }
   .algorithmField { flex-basis: 100%; }
   .quantumField,
   .priorityField { width: 100%; }
   .actions { width: 100%; flex-wrap: wrap; }
   .actions button { flex: 1; padding-inline: 0.65rem; }
-  .notice { margin-inline: -1rem; padding-inline: 1rem; }
+  .notice { margin-inline: -1rem; margin-bottom: -1.1rem; padding-inline: 1rem; }
   .problemHeader { align-items: start; flex-direction: column; gap: 0.65rem; }
   .problemHeader p { column-gap: 0.4rem; }
   .problemHeader b { width: 100%; padding-left: 0.7rem; }
@@ -238,8 +221,6 @@
   .timelineScroll { padding-inline: 1rem; }
   .resourceLabel,
   .axisLabel { left: -1rem; }
-  .worksheetFooter { padding-inline: 1rem; }
-  .footer { align-items: start; flex-direction: column; gap: 0.75rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

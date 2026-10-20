@@ -60,7 +60,6 @@ describe('practice with every scheduling algorithm', () => {
 
     const input = generator.generateProblem(99, settings)
     expectRule(settings)
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 99')
     expect(tableValues()).toEqual(input.processes.map((process) => [
       process.id, String(process.arrival), String(process.cpu1), String(process.io),
       String(process.cpu2), ...(settings.algorithm === 'priority' ? [String(process.priority)] : []),
@@ -103,7 +102,6 @@ describe('practice with every scheduling algorithm', () => {
 
     expectRule(settings)
     expect(tableValues().map((row) => row.slice(0, 5))).toEqual(before)
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 42')
     expect(screen.getByRole('button', { name: 'CPU, time 0 to 1: P1' })).toBeVisible()
     expect(screen.queryByRole('heading', { name: /^Review time / })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled()
@@ -166,7 +164,11 @@ describe('practice with every scheduling algorithm', () => {
     press('Start new problem')
     expectRule({ algorithm: 'priority', mode: 'preemptive' })
     expect(screen.getByRole('columnheader', { name: 'Priority' })).toBeVisible()
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 99')
+    const replacement = generator.generateProblem(99, { algorithm: 'priority', mode: 'preemptive' })
+    expect(tableValues()).toEqual(replacement.processes.map((process) => [
+      process.id, String(process.arrival), String(process.cpu1), String(process.io),
+      String(process.cpu2), String(process.priority),
+    ]))
     expect(screen.getByRole('button', { name: 'CPU, time 0 to 1: unanswered' })).toBeVisible()
     expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
     expect(screen.queryByRole('heading', { name: /^Review time / })).not.toBeInTheDocument()

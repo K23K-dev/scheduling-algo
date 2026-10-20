@@ -189,7 +189,6 @@ describe('learning from hints and solution playback', () => {
     selectRoundRobin('0')
     press('Retry same problem')
 
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 42')
     expect(processRows()).toEqual(processes)
     expect(screen.getByRole('heading', { name: 'FCFS — course launch order' })).toBeVisible()
     expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveValue('round-robin')
@@ -207,6 +206,7 @@ describe('learning from hints and solution playback', () => {
 
   test('clears help and playback after applying fitting settings while retaining the answers and assistance', () => {
     render(<App />)
+    const processes = processRows()
     assign('cpu', 2, 'P1')
     revealHint()
     press('Reveal solution')
@@ -214,8 +214,8 @@ describe('learning from hints and solution playback', () => {
     selectRoundRobin()
     press('Apply settings')
 
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 42')
     expect(answers()).toEqual(before)
+    expect(processRows()).toEqual(processes)
     expect(screen.getByText('Assisted attempt')).toBeVisible()
     expect(screen.queryByRole('table', { name: 'Reference solution' })).not.toBeInTheDocument()
     expectNoHintOrFeedback()
@@ -257,6 +257,7 @@ describe('learning from hints and solution playback', () => {
   test('preserves assistance when an overflowing switch is canceled and resets it when confirmed', () => {
     vi.mocked(generator.createProblemSeed).mockReturnValueOnce(607).mockReturnValue(99)
     render(<App />)
+    const processes = processRows()
     assign('cpu', 0, 'P2')
     press('Reveal solution')
     selectRoundRobin()
@@ -264,14 +265,14 @@ describe('learning from hints and solution playback', () => {
     expect(screen.getByRole('alertdialog')).toBeVisible()
     press('Keep current problem')
 
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 607')
+    expect(processRows()).toEqual(processes)
     expect(cell('cpu', 0)).toHaveAccessibleName('CPU, time 0 to 1: P2')
     expect(screen.getByRole('table', { name: 'Reference solution' })).toBeVisible()
     expect(screen.getByText('Assisted attempt')).toBeVisible()
     press('Apply settings')
     press('Start new problem')
 
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 99')
+    expect(processRows()).not.toEqual(processes)
     expect(screen.queryByRole('table', { name: 'Reference solution' })).not.toBeInTheDocument()
     expect(screen.queryByText('Assisted attempt')).not.toBeInTheDocument()
     expect(cell('cpu', 0)).toHaveAccessibleName('CPU, time 0 to 1: unanswered')
@@ -281,13 +282,14 @@ describe('learning from hints and solution playback', () => {
 
   test('starts a fresh unassisted attempt with a new problem', () => {
     render(<App />)
+    const processes = processRows()
     assign('cpu', 0, 'P3')
     revealHint()
     press('Reveal solution')
     vi.mocked(generator.createProblemSeed).mockReturnValue(99)
     press('New problem')
 
-    expect(screen.getByText('Seed')).toHaveTextContent('Seed 99')
+    expect(processRows()).not.toEqual(processes)
     expect(screen.queryByRole('table', { name: 'Reference solution' })).not.toBeInTheDocument()
     expect(screen.queryByText('Assisted attempt')).not.toBeInTheDocument()
     expect(cell('cpu', 0)).toHaveAccessibleName('CPU, time 0 to 1: unanswered')

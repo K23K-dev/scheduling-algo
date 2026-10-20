@@ -25,7 +25,7 @@ export default function App() {
   const [priorityMode, setPriorityMode] = useState<PriorityMode>('non-preemptive')
   const [quantumError, setQuantumError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState('Problem ready. All three processes arrive at time 0.')
+  const [notice, setNotice] = useState<string | null>(null)
   const [history, editAttempt] = useReducer(attemptReducer, undefined, createAttemptHistory)
   const [replacement, setReplacement] = useState<Problem | null>(null)
   const [feedback, setFeedback] = useState<GradeResult | null>(null)
@@ -94,6 +94,7 @@ export default function App() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
+    setNotice(null)
     if (
       algorithm === 'round-robin' &&
       (quantum.trim() === '' || !Number.isSafeInteger(Number(quantum)) || Number(quantum) < 1)
@@ -115,7 +116,6 @@ export default function App() {
         const next = generateProblem(createProblemSeed(problem.seed), settings)
         setProblem(next)
         resetAttempt()
-        setNotice('New problem ready. Read the process table to get started.')
       } else if (pendingSettings) {
         const updated = updateProblemSettings(problem, settings, createProblemSeed(problem.seed))
         const hasAttempt = history.present.cpu.some((cell) => cell !== null) ||
@@ -131,9 +131,7 @@ export default function App() {
         if (updated.replaced) resetAttempt()
         setNotice(updated.replaced
           ? 'The previous workload would exceed 40 blocks with these settings. A new problem is ready.'
-          : 'Settings applied. The same processes and burst lengths are ready to use.')
-      } else {
-        setNotice('These settings are already applied. Your current problem is unchanged.')
+          : null)
       }
     } catch {
       setError('This problem could not be prepared. Please try again.')
@@ -152,11 +150,7 @@ export default function App() {
       </header>
 
       <section className={styles.introduction} aria-labelledby="app-title">
-        <div>
-          <p className={styles.eyebrow}>THE SCHEDULING WORKBENCH</p>
-          <h1 id="app-title">Scheduling Algo</h1>
-          <p className={styles.description}>One CPU. Three processes. What runs next?</p>
-        </div>
+        <h1 id="app-title">Scheduling Algo</h1>
         <div className={styles.model} aria-label="Each process runs CPU 1, then I/O, then CPU 2">
           <span>CPU 1</span><b aria-hidden="true">→</b><span>I/O</span><b aria-hidden="true">→</b><span>CPU 2</span>
         </div>
@@ -165,7 +159,6 @@ export default function App() {
       <section className={styles.controls} aria-labelledby="settings-title">
         <div className={styles.sectionHeading}>
           <h2 id="settings-title"><span className={styles.step}>01</span> Set up your problem</h2>
-          <span className={styles.muted}>3 processes · 40 time units</span>
         </div>
         <form onSubmit={handleSubmit} noValidate>
           <div className={styles.controlFields}>
@@ -174,7 +167,7 @@ export default function App() {
               <select
                 id="algorithm"
                 value={algorithm}
-                aria-describedby="settings-help"
+                aria-describedby={pendingSettings ? 'settings-help' : undefined}
                 onChange={(event) => {
                   const value = event.target.value
                   if (
@@ -243,26 +236,25 @@ export default function App() {
               </button>
             </div>
           </div>
-          <div className={styles.controlHelp}>
-            <p id="settings-help">
-              {pendingSettings
-                ? 'Changes are pending. Apply settings to reuse this workload, or start a new problem.'
-                : 'Apply settings to reuse this workload. New problem generates a fresh one.'}
-            </p>
-            {algorithm === 'round-robin' ? <p id="quantum-help">Try a quantum of 2–4 time units.</p> : null}
-            {algorithm === 'priority' ? (
-              <p id="priority-help">Smaller numbers mean higher priority. Apply settings to see the process priorities.</p>
-            ) : null}
-          </div>
+          {pendingSettings || algorithm === 'round-robin' || algorithm === 'priority' ? (
+            <div className={styles.controlHelp}>
+              {pendingSettings ? (
+                <p id="settings-help">Changes are pending. Apply settings to reuse this workload, or start a new problem.</p>
+              ) : null}
+              {algorithm === 'round-robin' ? <p id="quantum-help">Try a quantum of 2–4 time units.</p> : null}
+              {algorithm === 'priority' ? (
+                <p id="priority-help">Smaller numbers mean higher priority. Apply settings to see the process priorities.</p>
+              ) : null}
+            </div>
+          ) : null}
           {quantumError ? <p id="quantum-error" className={styles.error} role="alert">{quantumError}</p> : null}
         </form>
         {error ? <p role="alert" className={styles.error}>{error}</p> : null}
-        <p className={styles.notice} role="status"><span aria-hidden="true" />{notice}</p>
+        {notice ? <p className={styles.notice} role="status"><span aria-hidden="true" />{notice}</p> : null}
       </section>
 
       <div className={styles.problemHeader}>
         <p><span className={styles.liveDot} aria-hidden="true" /> Current problem <b>{activeRule.label}</b></p>
-        <span className={styles.seed}>Seed <span>{problem.seed}</span></span>
       </div>
       <div className={styles.problemLayout}>
         <ProcessTable processes={problem.processes} showPriority={problem.settings.algorithm === 'priority'} />
@@ -286,7 +278,7 @@ export default function App() {
         helpError={helpError}
         onRetry={() => {
           resetAttempt()
-          setNotice('Same problem ready for a fresh attempt.')
+          setNotice(null)
         }}
       />
       {solution ? (
@@ -301,7 +293,7 @@ export default function App() {
         <ReplaceProblemDialog
           onCancel={() => {
             setReplacement(null)
-            setNotice('Current problem and attempt kept. The selected settings have not been applied.')
+            setNotice(null)
           }}
           onConfirm={() => {
             setProblem(replacement)
@@ -311,13 +303,6 @@ export default function App() {
           }}
         />
       ) : null}
-
-      <footer className={styles.footer}>
-        <span>Understand the decision. Build the timeline.</span>
-        <a href="https://github.com/K23K-dev/scheduling-algo">
-          View the project <span aria-hidden="true">↗</span>
-        </a>
-      </footer>
     </main>
   )
 }

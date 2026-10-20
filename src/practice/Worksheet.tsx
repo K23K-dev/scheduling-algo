@@ -391,11 +391,11 @@ export function Worksheet({
         </button>
         <button type="button" onClick={() => { cancelDrag(); onRetry() }}>Retry same problem</button>
       </div>
-      <p className={editor.checkHelp}>
-        {pendingSettings
-          ? 'Checking, hints, and playback use the current problem’s applied settings. Your setting changes are still pending.'
-          : 'Hints start with a rule. Revealing an assignment or solution marks this attempt as assisted.'}
-      </p>
+      {pendingSettings ? (
+        <p className={editor.checkHelp}>
+          Checking, hints, and playback use the current problem’s applied settings. Your setting changes are still pending.
+        </p>
+      ) : null}
       <AnswerFeedback
         result={visibleFeedback}
         error={checkError}
@@ -409,7 +409,7 @@ export function Worksheet({
           onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
         />
       </div>
-      <div className={styles.worksheetFooter} id="keyboard-help">
+      <div className={editor.screenReaderHelp} id="keyboard-help">
         <p>1/2/3 choose a process · I selects Idle · E selects Erase</p>
         <p>Arrows move · Home/End jump along a row · Enter/Space assign · Delete/Backspace erase</p>
         <p>Ctrl/Cmd+Z undoes · Ctrl/Cmd+Shift+Z redoes. Shortcuts work while focus is in this worksheet.</p>
