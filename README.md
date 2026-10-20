@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The app foundation, scheduling data model, shared simulator, and seeded problem generator for course FCFS and round robin are implemented with input validation and automated tests. SJF, SRTF, priority scheduling, and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** The practice workspace now displays generated problems, algorithm controls, process tables, scheduling rules, and a blank 40-block CPU/I/O worksheet. Course FCFS and round robin have tested simulators and seeded generators. Timeline editing, checking, SJF, SRTF, and priority scheduling are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -232,9 +232,17 @@ Hand-calculated tests cover overlap, I/O contention, blocked CPU idleness, launc
 
 Every candidate is checked by `simulate`. The first schedule completing in 28–40 intervals is accepted; rejected workloads are discarded without changing their bursts. After 100 rejected candidates, the generator checks and returns a fixed fallback with 28 units of CPU work and 9 units of I/O work. Since all processes arrive at zero and both supported policies keep working whenever work is available, that fallback finishes between times 28 and 37 for any valid quantum. A failed fallback check throws instead of returning an invalid worksheet.
 
-`createProblemSeed(previousSeed?)` draws a new unsigned 32-bit seed and avoids repeating the supplied current seed. Use it for **New problem**; **Retry** should retain the existing `Problem`. Store the actual processes along with their seed, settings, and versions. Changes to the random stream, sample order, ranges, acceptance rules, attempt limit, or fallback require a generator-version change. When changing settings, first simulate the existing workload under those settings; the practice interface will handle explaining an overflow and generating a replacement.
+`createProblemSeed(previousSeed?)` draws a new unsigned 32-bit seed and avoids repeating the supplied current seed. Use it for **New problem**; **Retry** should retain the existing `Problem`. Store the actual processes along with their seed, settings, and versions. Changes to the random stream, sample order, ranges, acceptance rules, attempt limit, or fallback require a generator-version change. When changing settings, the practice workspace first simulates the existing workload under those settings, explaining any overflow and generating a replacement when necessary.
 
 Generator tests cover fixed-seed reproduction, invalid inputs, completion exactly at 40, whole-candidate rejection, bounded fallback, and independent returned objects. Tests across 490 seeded worksheets check that all original work fits and that the set includes CPU/I/O overlap, I/O contention, blocked CPU idle time, and meaningful round-robin expiration.
+
+### Practice workspace
+
+The app opens a generated course FCFS problem. Choose an algorithm and, for round robin, a positive whole-number quantum. **Apply settings** keeps the existing processes and seed if the workload still finishes by time 40. If it overflows, the app generates a new problem and explains the replacement. **New problem** always uses a fresh seed with the selected settings. Controls remain a draft until either action; the process table and rules continue to describe the active problem. Invalid quantum input leaves that problem intact.
+
+The process table shows arrival, CPU 1, I/O, and CPU 2 values. Rules show the active scheduling convention, with expandable I/O and simultaneous-event details. All five planned algorithms appear in the selector; SJF, SRTF, and priority remain disabled until their simulators are implemented.
+
+The worksheet has 40 unanswered cells per resource with boundary labels 0–40, a labeled process/Idle/Unanswered legend, and a horizontally scrollable region that can receive keyboard focus. Small screens stack the panels while preserving readable cell widths. The reference solution and completion time are not rendered. This step is a worksheet preview: cell assignment, undo/redo, checking, and solution controls follow in later steps.
 
 ## Local development
 
@@ -247,7 +255,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. The initial screen is a project foundation; the scheduling practice flow described above will be added in later steps.
+Open the local URL printed by Vite. Use the problem controls to generate workloads and compare scheduling rules. Timeline editing and checking will be added in later steps.
 
 | Command | Purpose |
 | --- | --- |
