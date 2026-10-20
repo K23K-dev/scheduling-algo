@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** Project scope and implementation plan. The application has not been built yet. The defaults below are proposed product decisions; course-specific behavior is identified explicitly.
+**Status:** The React, TypeScript, and Vite foundation is in place, with development tools and automated checks. Scheduling and practice features are not implemented yet. The defaults below remain proposed product decisions; course-specific behavior is identified explicitly.
 
 ## Goals
 
@@ -204,7 +204,32 @@ The simulator should be a pure function: the same problem and rules produce the 
 
 Keep editable answers separate from the reference solution. Record enough state at each boundary to explain a choice without rerunning a different interpretation of the algorithm.
 
-Once the application exists, add verified installation, development, test, and build commands here.
+## Local development
+
+Use the Node.js version pinned in [`.nvmrc`](.nvmrc) (24.22.0) and its bundled npm. CI reads the same version file. If you use nvm, run `nvm install` and `nvm use` in this directory first.
+
+From the repository root:
+
+```sh
+npm ci
+npm run dev
+```
+
+Open the local URL printed by Vite. The initial screen is a project foundation; the scheduling practice flow described above will be added in later steps.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the local development server |
+| `npm run lint` | Check code with Oxlint |
+| `npm run typecheck` | Check TypeScript types |
+| `npm test` | Run Vitest tests once |
+| `npm run test:watch` | Rerun tests as files change |
+| `npm run build` | Check types and create the production build in `dist/` |
+| `npm run preview` | Serve the existing production build locally |
+
+Run `npm run build` before `npm run preview`. Component tests use React Testing Library and jsdom.
+
+GitHub Actions runs installation, linting, type checking, tests, and a production build for pull requests and pushes to `main`. Deployment will be added later.
 
 ## Build phases
 
