@@ -1,9 +1,12 @@
-import { useState, type FormEvent } from 'react'
+import { useReducer, useState, type FormEvent } from 'react'
 import { createProblemSeed, generateProblem } from './scheduling/generator'
 import { getSchedulingRule } from './scheduling/rules'
-import type { SchedulingSettings } from './scheduling/types'
+import type { Problem, SchedulingSettings } from './scheduling/types'
 import { updateProblemSettings } from './practice/settings'
-import { ProcessTable, RulesPanel, Worksheet } from './practice/Workspace'
+import { ProcessTable, RulesPanel } from './practice/Workspace'
+import { Worksheet } from './practice/Worksheet'
+import { ReplaceProblemDialog } from './practice/ReplaceProblemDialog'
+import { attemptReducer, createAttemptHistory } from './practice/attempt'
 import styles from './App.module.css'
 
 type AvailableAlgorithm = 'fcfs-course' | 'round-robin'
@@ -17,6 +20,8 @@ export default function App() {
   const [quantumError, setQuantumError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState('Problem ready. All three processes arrive at time 0.')
+  const [history, editAttempt] = useReducer(attemptReducer, undefined, createAttemptHistory)
+  const [replacement, setReplacement] = useState<Problem | null>(null)
   const activeRule = getSchedulingRule(problem.settings)
   const pendingSettings = algorithm !== problem.settings.algorithm ||
     (problem.settings.algorithm === 'round-robin' && Number(quantum) !== problem.settings.quantum)
@@ -40,11 +45,21 @@ export default function App() {
 
     try {
       if (action === 'new') {
-        setProblem(generateProblem(createProblemSeed(problem.seed), settings))
+        const next = generateProblem(createProblemSeed(problem.seed), settings)
+        setProblem(next)
+        editAttempt({ type: 'reset' })
         setNotice('New problem ready. Read the process table to get started.')
       } else if (pendingSettings) {
         const updated = updateProblemSettings(problem, settings, createProblemSeed(problem.seed))
+        const hasAttempt = history.present.cpu.some((cell) => cell !== null) ||
+          history.present.io.some((cell) => cell !== null) ||
+          history.past.length > 0 || history.future.length > 0
+        if (updated.replaced && hasAttempt) {
+          setReplacement(updated.problem)
+          return
+        }
         setProblem(updated.problem)
+        if (updated.replaced) editAttempt({ type: 'reset' })
         setNotice(updated.replaced
           ? 'The previous workload would exceed 40 blocks with these settings. A new problem is ready.'
           : 'Settings applied. The same processes and burst lengths are ready to use.')
@@ -157,7 +172,26 @@ export default function App() {
         <ProcessTable processes={problem.processes} />
         <RulesPanel settings={problem.settings} />
       </div>
-      <Worksheet processes={problem.processes} />
+      <Worksheet
+        key={problem.seed}
+        processes={problem.processes}
+        history={history}
+        onEdit={editAttempt}
+      />
+      {replacement ? (
+        <ReplaceProblemDialog
+          onCancel={() => {
+            setReplacement(null)
+            setNotice('Current problem and attempt kept. The selected settings have not been applied.')
+          }}
+          onConfirm={() => {
+            setProblem(replacement)
+            editAttempt({ type: 'reset' })
+            setReplacement(null)
+            setNotice('The previous workload would exceed 40 blocks with these settings. A new problem is ready.')
+          }}
+        />
+      ) : null}
 
       <footer className={styles.footer}>
         <span>Understand the decision. Build the timeline.</span>

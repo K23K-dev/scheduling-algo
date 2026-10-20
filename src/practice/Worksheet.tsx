@@ -1,0 +1,308 @@
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react'
+import { TIME_BOUNDARIES } from '../scheduling/timeline'
+import {
+  TIMELINE_LENGTH,
+  type AttemptCell,
+  type ProcessInput,
+  type Resource,
+} from '../scheduling/types'
+import type { AttemptAction, AttemptHistory } from './attempt'
+import styles from '../App.module.css'
+import editor from './Worksheet.module.css'
+
+interface CellPosition {
+  readonly resource: Resource
+  readonly index: number
+}
+
+interface Drag {
+  readonly pointerId: number
+  readonly resource: Resource
+  readonly start: number
+  readonly end: number
+  readonly value: AttemptCell
+}
+
+interface WorksheetProps {
+  readonly processes: readonly ProcessInput[]
+  readonly history: AttemptHistory
+  readonly onEdit: Dispatch<AttemptAction>
+}
+
+const intervals = TIME_BOUNDARIES.slice(0, TIMELINE_LENGTH)
+const resources = [{ id: 'cpu', label: 'CPU' }, { id: 'io', label: 'I/O' }] as const
+
+function cellLabel(value: AttemptCell): string {
+  return value === null ? 'unanswered' : value === 'idle' ? 'Idle' : value
+}
+
+export function Worksheet({ processes, history, onEdit }: WorksheetProps) {
+  const [tool, setTool] = useState<AttemptCell>(processes[0].id)
+  const [focused, setFocused] = useState<CellPosition>({ resource: 'cpu', index: 0 })
+  const [drag, setDrag] = useState<Drag | null>(null)
+  const dragRef = useRef<Drag | null>(null)
+  const suppressClick = useRef(false)
+  const regionRef = useRef<HTMLDivElement>(null)
+  const answered = [...history.present.cpu, ...history.present.io].filter((cell) => cell !== null).length
+
+  const cancelDrag = useCallback(() => {
+    const current = dragRef.current
+    dragRef.current = null
+    setDrag(null)
+    const region = regionRef.current
+    if (current && region?.hasPointerCapture?.(current.pointerId)) {
+      region.releasePointerCapture(current.pointerId)
+    }
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener('blur', cancelDrag)
+    return () => window.removeEventListener('blur', cancelDrag)
+  }, [cancelDrag])
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>, position: CellPosition) {
+    // Touch uses native taps and swipes, so scrolling never starts an edit.
+    if (dragRef.current) return
+    suppressClick.current = false
+    if (event.pointerType === 'touch' || event.button !== 0 || event.isPrimary === false) return
+    event.preventDefault()
+    event.currentTarget.focus({ preventScroll: true })
+    suppressClick.current = true
+    const next: Drag = {
+      pointerId: event.pointerId,
+      resource: position.resource,
+      start: position.index,
+      end: position.index,
+      value: tool,
+    }
+    dragRef.current = next
+    setDrag(next)
+    regionRef.current?.setPointerCapture?.(event.pointerId)
+  }
+
+  function moveDrag(event: PointerEvent<HTMLDivElement>) {
+    const current = dragRef.current
+    if (!current || current.pointerId !== event.pointerId) return
+    // Pointer capture delivers moves outside the original cell; hit-test the
+    // actual position and keep the gesture confined to its starting resource.
+    const cell = document.elementFromPoint?.(event.clientX, event.clientY)
+      ?.closest<HTMLButtonElement>('button[data-resource][data-index]')
+    if (!cell || !regionRef.current?.contains(cell) || cell.dataset.resource !== current.resource) return
+    const end = Number(cell.dataset.index)
+    if (end === current.end) return
+    const next = { ...current, end }
+    dragRef.current = next
+    setDrag(next)
+  }
+
+  function finishDrag(event: PointerEvent<HTMLDivElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    moveDrag(event)
+    const current = dragRef.current
+    if (!current) return
+    cancelDrag()
+    onEdit({
+      type: 'paint',
+      resource: current.resource,
+      start: current.start,
+      end: current.end,
+      value: current.value,
+    })
+  }
+
+  function focusCell(position: CellPosition) {
+    const button = regionRef.current?.querySelector<HTMLButtonElement>(
+      `button[data-resource="${position.resource}"][data-index="${position.index}"]`,
+    )
+    button?.focus({ preventScroll: true })
+    button?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
+  }
+
+  function handleKeys(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape') {
+      cancelDrag()
+      return
+    }
+    const key = event.key.toLowerCase()
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && (key === 'z' || key === 'y')) {
+      event.preventDefault()
+      cancelDrag()
+      onEdit({ type: key === 'y' || event.shiftKey ? 'redo' : 'undo' })
+      return
+    }
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    if (!(event.target instanceof HTMLButtonElement) || !event.target.dataset.resource) return
+    const position = {
+      resource: event.target.dataset.resource as Resource,
+      index: Number(event.target.dataset.index),
+    }
+    let next: CellPosition | null = null
+    switch (event.key) {
+      case 'ArrowLeft':
+        next = { ...position, index: Math.max(0, position.index - 1) }
+        break
+      case 'ArrowRight':
+        next = { ...position, index: Math.min(TIMELINE_LENGTH - 1, position.index + 1) }
+        break
+      case 'ArrowUp':
+        next = { ...position, resource: 'cpu' }
+        break
+      case 'ArrowDown':
+        next = { ...position, resource: 'io' }
+        break
+      case 'Home':
+        next = { ...position, index: 0 }
+        break
+      case 'End':
+        next = { ...position, index: TIMELINE_LENGTH - 1 }
+        break
+      case 'Backspace':
+      case 'Delete':
+        event.preventDefault()
+        cancelDrag()
+        onEdit({ type: 'paint', resource: position.resource, start: position.index, end: position.index, value: null })
+        return
+    }
+    if (next) {
+      event.preventDefault()
+      cancelDrag()
+      focusCell(next)
+    }
+  }
+
+  return (
+    <section
+      className={`${styles.panel} ${styles.worksheet}`}
+      aria-labelledby="worksheet-title"
+      onKeyDown={handleKeys}
+    >
+      <div className={styles.panelHeading}>
+        <h2 id="worksheet-title"><span className={styles.step}>03</span> Your timeline</h2>
+        <span className={styles.previewTag} aria-live="polite">{answered} / 80 filled</span>
+      </div>
+      <p className={styles.worksheetDescription} id="editing-help">
+        Choose a process, Idle, or Erase. Click a block or drag across one row to assign a range.
+      </p>
+      <div className={editor.toolbar}>
+        <div className={editor.palette} role="group" aria-label="Assignment tool">
+          {processes.map(({ id }) => (
+            <button
+              key={id}
+              type="button"
+              className={`${styles.processBadge} ${editor.tool}`}
+              data-process={id}
+              aria-pressed={tool === id}
+              onClick={() => { cancelDrag(); setTool(id) }}
+            >{id}</button>
+          ))}
+          <button
+            type="button"
+            className={`${editor.tool} ${editor.idleTool}`}
+            aria-pressed={tool === 'idle'}
+            onClick={() => { cancelDrag(); setTool('idle') }}
+          >Idle</button>
+          <button
+            type="button"
+            className={editor.tool}
+            aria-pressed={tool === null}
+            onClick={() => { cancelDrag(); setTool(null) }}
+          >Erase</button>
+        </div>
+        <div className={editor.historyActions}>
+          <button type="button" disabled={history.past.length === 0} title="Undo (Ctrl/Cmd+Z)" onClick={() => onEdit({ type: 'undo' })}>Undo</button>
+          <button type="button" disabled={history.future.length === 0} title="Redo (Ctrl/Cmd+Shift+Z)" onClick={() => onEdit({ type: 'redo' })}>Redo</button>
+          <button type="button" disabled={answered === 0} onClick={() => onEdit({ type: 'clear' })}>Clear attempt</button>
+        </div>
+      </div>
+      <div className={editor.legend}>
+        <span><i className={styles.emptySwatch} aria-hidden="true">·</i> Unanswered</span>
+        <span>First block: [0, 1)</span>
+      </div>
+      <div
+        ref={regionRef}
+        className={styles.timelineScroll}
+        tabIndex={0}
+        role="region"
+        aria-label="Scrollable CPU and I/O worksheet"
+        onPointerMove={moveDrag}
+        onPointerUp={finishDrag}
+        onPointerCancel={(event) => { if (dragRef.current?.pointerId === event.pointerId) cancelDrag() }}
+        onLostPointerCapture={(event) => { if (dragRef.current?.pointerId === event.pointerId) cancelDrag() }}
+      >
+        <table className={styles.timeline} aria-label="CPU and I/O worksheet" aria-describedby="editing-help keyboard-help">
+          <colgroup><col className={styles.resourceColumn} /><col span={TIMELINE_LENGTH} /></colgroup>
+          <thead>
+            <tr>
+              <th scope="col" className={styles.axisLabel}>Time</th>
+              {intervals.map((time) => (
+                <th key={time} scope="col" className={styles.timeBoundary} aria-label={`Time ${time} to ${time + 1}`}>
+                  <span>{time}</span>
+                  {time === TIMELINE_LENGTH - 1 ? <span className={styles.finalBoundary}>{TIMELINE_LENGTH}</span> : null}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {resources.map(({ id: resource, label }) => (
+              <tr key={resource}>
+                <th scope="row" className={styles.resourceLabel}>{label}</th>
+                {intervals.map((time) => {
+                  const preview = drag !== null && drag.resource === resource &&
+                    time >= Math.min(drag.start, drag.end) && time <= Math.max(drag.start, drag.end)
+                  const value = preview ? drag.value : history.present[resource][time]
+                  return (
+                    <td
+                      key={time}
+                      className={`${styles.timelineCell} ${editor.cell} ${time % 5 === 0 ? styles.majorBoundary : ''}`}
+                    >
+                      <button
+                        type="button"
+                        className={editor.cellButton}
+                        aria-label={`${label}, time ${time} to ${time + 1}: ${cellLabel(value)}`}
+                        data-resource={resource}
+                        data-index={time}
+                        data-value={value ?? 'empty'}
+                        data-preview={preview || undefined}
+                        tabIndex={focused.resource === resource && focused.index === time ? 0 : -1}
+                        onFocus={() => setFocused({ resource, index: time })}
+                        onPointerDown={(event) => startDrag(event, { resource, index: time })}
+                        onClick={(event) => {
+                          // A physical drag already committed on pointerup. Native
+                          // keyboard activation and touch taps still produce clicks.
+                          if (event.detail !== 0 && suppressClick.current) {
+                            suppressClick.current = false
+                            return
+                          }
+                          suppressClick.current = false
+                          onEdit({ type: 'paint', resource, start: time, end: time, value: tool })
+                        }}
+                      ><span aria-hidden="true">{value === null ? '·' : cellLabel(value)}</span></button>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className={editor.bottomActions}>
+        <button type="button" disabled={answered === 80} onClick={() => onEdit({ type: 'fill-idle' })}>
+          Fill remaining empty cells with Idle
+        </button>
+        <p>Your assignments stay editable. Checking comes next.</p>
+      </div>
+      <div className={styles.worksheetFooter} id="keyboard-help">
+        <p>Arrow keys move · Enter/Space assign · Delete erases · Ctrl/Cmd+Z undoes</p>
+        <p>On touch screens, tap to assign and swipe to scroll.</p>
+      </div>
+    </section>
+  )
+}

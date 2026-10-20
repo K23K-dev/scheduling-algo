@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The practice workspace now displays generated problems, algorithm controls, process tables, scheduling rules, and a blank 40-block CPU/I/O worksheet. Course FCFS and round robin have tested simulators and seeded generators. Timeline editing, checking, SJF, SRTF, and priority scheduling are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** The practice workspace supports generated problems, algorithm controls, process tables, scheduling rules, and editable 40-block CPU/I/O timelines with undo/redo. Course FCFS and round robin have tested simulators and seeded generators. Checking, hints, solution playback, persistence, SJF, SRTF, and priority scheduling are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -238,11 +238,15 @@ Generator tests cover fixed-seed reproduction, invalid inputs, completion exactl
 
 ### Practice workspace
 
-The app opens a generated course FCFS problem. Choose an algorithm and, for round robin, a positive whole-number quantum. **Apply settings** keeps the existing processes and seed if the workload still finishes by time 40. If it overflows, the app generates a new problem and explains the replacement. **New problem** always uses a fresh seed with the selected settings. Controls remain a draft until either action; the process table and rules continue to describe the active problem. Invalid quantum input leaves that problem intact.
+The app opens a generated course FCFS problem. Choose an algorithm and, for round robin, a positive whole-number quantum. **Apply settings** keeps the existing processes, seed, answers, and undo history if the workload still finishes by time 40. If it overflows, the app explains the replacement and asks before discarding any existing or undoable answers. **New problem** uses a fresh seed with the selected settings and resets the attempt and its history. Controls remain a draft until either action; the process table and rules continue to describe the active problem. Invalid quantum input and failed generation leave that problem and attempt intact.
 
 The process table shows arrival, CPU 1, I/O, and CPU 2 values. Rules show the active scheduling convention, with expandable I/O and simultaneous-event details. All five planned algorithms appear in the selector; SJF, SRTF, and priority remain disabled until their simulators are implemented.
 
-The worksheet has 40 unanswered cells per resource with boundary labels 0–40, a labeled process/Idle/Unanswered legend, and a horizontally scrollable region that can receive keyboard focus. Small screens stack the panels while preserving readable cell widths. The reference solution and completion time are not rendered. This step is a worksheet preview: cell assignment, undo/redo, checking, and solution controls follow in later steps.
+The worksheet starts with 40 unanswered cells per resource and boundary labels 0–40. Select a process, **Idle**, or **Erase**, then click a block or drag through a contiguous range in one row. Dragging previews the range until release, including when dragging backward; reversing toward the starting block restores cells outside the smaller range. A completed drag is one undoable edit. Escape, pointer cancellation, loss of pointer capture, or the window losing focus cancels the preview. On touch screens, tap to assign and swipe to scroll without painting.
+
+**Fill remaining empty cells with Idle** preserves existing assignments. **Clear attempt** erases both rows. Each is a single undoable edit. Undo/redo retains up to 100 changes, ignores no-op assignments, and drops redo history only after a changed edit. History never crosses into a new problem. The immutable editing reducer is in `src/practice/attempt.ts`; answers are independent of the reference simulator, and even incorrect assignments are allowed without feedback.
+
+Keyboard users can Tab into the worksheet, move between cells with arrow keys, jump to a row's first/last block with Home/End, assign the selected tool with Enter/Space, and erase with Delete/Backspace. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. These shortcuts apply only inside the worksheet. Small screens preserve readable cell widths and scroll horizontally. Every cell exposes its resource, interval, and assignment as an accessible label. The filled-cell count does not indicate correctness, and the solution and completion time are not rendered. Checking and solution controls follow in later steps; attempts currently last for the open page session.
 
 ## Local development
 
@@ -255,7 +259,7 @@ npm ci
 npm run dev
 ```
 
-Open the local URL printed by Vite. Use the problem controls to generate workloads and compare scheduling rules. Timeline editing and checking will be added in later steps.
+Open the local URL printed by Vite. Generate a workload, choose an assignment tool, and fill the CPU/I/O timelines. Checking and explanations will be added in the next step.
 
 | Command | Purpose |
 | --- | --- |

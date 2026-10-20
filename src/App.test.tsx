@@ -51,6 +51,30 @@ function selectRoundRobin(quantum = '2') {
   })
 }
 
+function getCell(resource: 'CPU' | 'I/O', time: number, answer = 'unanswered') {
+  return screen.getByRole('button', {
+    name: `${resource}, time ${time} to ${time + 1}: ${answer}`,
+  })
+}
+
+function createPartlyUndoneAttempt() {
+  fireEvent.click(getCell('CPU', 0))
+  fireEvent.click(getCell('I/O', 1))
+  fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+  expect(getCell('CPU', 0, 'P1')).toBeVisible()
+  expect(getCell('I/O', 1)).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Redo' })).toBeEnabled()
+}
+
+function expectEmptyHistory() {
+  expect(
+    screen.getAllByLabelText(/^(CPU|I\/O), time \d+ to \d+: unanswered$/),
+  ).toHaveLength(80)
+  expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled()
+}
+
 beforeEach(() => {
   vi.spyOn(generator, 'createProblemSeed').mockReturnValue(42)
 })
@@ -245,4 +269,205 @@ describe('practice workspace', () => {
       expectProcessTable(original)
     },
   )
+})
+
+describe('attempt lifecycle', () => {
+  test('preserves answers and both history directions through drafts and fitting settings changes', () => {
+    render(<App />)
+    createPartlyUndoneAttempt()
+
+    selectRoundRobin()
+
+    expectActiveRule(fcfs)
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+    expect(getCell('I/O', 1)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeEnabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
+
+    expectActiveRule(rr)
+    expectProcessTable(generator.generateProblem(42, fcfs))
+    expectSeed(42)
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+    expect(getCell('I/O', 1, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(getCell('CPU', 0)).toBeVisible()
+    expect(getCell('I/O', 1)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  test('keeps the current attempt and redo history when applying unchanged settings', () => {
+    render(<App />)
+    createPartlyUndoneAttempt()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
+
+    expectActiveRule(fcfs)
+    expectSeed(42)
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+    expect(getCell('I/O', 1)).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+    expect(getCell('I/O', 1, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(getCell('CPU', 0)).toBeVisible()
+  })
+
+  test('keeps answers and history when invalid settings prevent applying or generating', () => {
+    render(<App />)
+    createPartlyUndoneAttempt()
+    vi.mocked(generator.createProblemSeed).mockReturnValue(99)
+
+    selectRoundRobin('0')
+    for (const action of ['Apply settings', 'New problem']) {
+      fireEvent.click(screen.getByRole('button', { name: action }))
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Enter a whole number of at least 1.',
+      )
+      expectActiveRule(fcfs)
+      expectSeed(42)
+      expect(getCell('CPU', 0, 'P1')).toBeVisible()
+      expect(getCell('I/O', 1)).toBeVisible()
+      expect(screen.getByRole('button', { name: 'Undo' })).toBeEnabled()
+      expect(screen.getByRole('button', { name: 'Redo' })).toBeEnabled()
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+    expect(getCell('I/O', 1, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(getCell('I/O', 1)).toBeVisible()
+  })
+
+  test('retains answers and history if preparing a new problem fails', () => {
+    render(<App />)
+    createPartlyUndoneAttempt()
+    selectRoundRobin()
+    vi.spyOn(generator, 'generateProblem').mockImplementationOnce(() => {
+      throw new Error('Problem generation failed')
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'New problem' }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This problem could not be prepared. Please try again.',
+    )
+    expectActiveRule(fcfs)
+    expectSeed(42)
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+    expect(getCell('I/O', 1, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(getCell('CPU', 0)).toBeVisible()
+  })
+
+  test('starts a new workload with blank answers and no history from the previous problem', () => {
+    render(<App />)
+    createPartlyUndoneAttempt()
+    vi.mocked(generator.createProblemSeed).mockReturnValue(99)
+    selectRoundRobin('3')
+
+    fireEvent.click(screen.getByRole('button', { name: 'New problem' }))
+
+    const settings = { algorithm: 'round-robin', quantum: 3 } as const
+    expectActiveRule(settings)
+    expectSeed(99)
+    expectProcessTable(generator.generateProblem(99, settings))
+    expectEmptyHistory()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+
+    fireEvent.click(getCell('CPU', 4))
+    expect(getCell('CPU', 4, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(
+      screen.getAllByLabelText(/^(CPU|I\/O), time \d+ to \d+: unanswered$/),
+    ).toHaveLength(80)
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  test('lets the learner cancel an overflowing settings change without losing answers or history', () => {
+    vi.mocked(generator.createProblemSeed).mockReturnValueOnce(607).mockReturnValue(99)
+    render(<App />)
+    createPartlyUndoneAttempt()
+    selectRoundRobin()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
+
+    const dialog = within(screen.getByRole('alertdialog', { name: 'Start a new problem?' }))
+    expect(dialog.getByRole('heading', { name: 'Start a new problem?' })).toBeVisible()
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(/40 blocks/i)
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(/attempt/i)
+    expectActiveRule(fcfs)
+    expectSeed(607)
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Keep current problem' }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expectActiveRule(fcfs)
+    expectSeed(607)
+    expectProcessTable(generator.generateProblem(607, fcfs))
+    expect(screen.getByRole('combobox', { name: 'Algorithm' })).toHaveValue('round-robin')
+    expect(screen.getByRole('spinbutton', { name: 'Time quantum' })).toHaveValue(2)
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }))
+    expect(getCell('I/O', 1, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(getCell('CPU', 0)).toBeVisible()
+  })
+
+  test('clears the attempt and both history directions after confirming an overflow replacement', () => {
+    vi.mocked(generator.createProblemSeed).mockReturnValueOnce(607).mockReturnValue(99)
+    render(<App />)
+    createPartlyUndoneAttempt()
+    selectRoundRobin()
+    fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
+
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Start new problem',
+    }))
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expectActiveRule(rr)
+    expectSeed(99)
+    expectProcessTable(generator.generateProblem(99, rr))
+    expectEmptyHistory()
+    fireEvent.click(getCell('I/O', 4))
+    expect(getCell('I/O', 4, 'P1')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(
+      screen.getAllByLabelText(/^(CPU|I\/O), time \d+ to \d+: unanswered$/),
+    ).toHaveLength(80)
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled()
+  })
+
+  test.each([
+    { emptyWith: 'Undo', restoreWith: 'Redo' },
+    { emptyWith: 'Clear attempt', restoreWith: 'Undo' },
+  ])('protects recoverable answers after $emptyWith leaves an empty worksheet', ({
+    emptyWith,
+    restoreWith,
+  }) => {
+    vi.mocked(generator.createProblemSeed).mockReturnValueOnce(607).mockReturnValue(99)
+    render(<App />)
+    fireEvent.click(getCell('CPU', 0))
+    fireEvent.click(screen.getByRole('button', { name: emptyWith }))
+    expect(
+      screen.getAllByLabelText(/^(CPU|I\/O), time \d+ to \d+: unanswered$/),
+    ).toHaveLength(80)
+    selectRoundRobin()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply settings' }))
+
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', {
+      name: 'Keep current problem',
+    }))
+    expectActiveRule(fcfs)
+    expectSeed(607)
+    fireEvent.click(screen.getByRole('button', { name: restoreWith }))
+    expect(getCell('CPU', 0, 'P1')).toBeVisible()
+  })
 })

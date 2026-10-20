@@ -123,6 +123,7 @@
 .axisLabel { color: #91a4af; font-size: 0.6rem; font-weight: 400; }
 .timeBoundary { position: relative; height: 2rem; color: #90a4af; font-size: 0.6rem; font-weight: 400; }
 .timeBoundary > span { position: absolute; bottom: 0.6rem; left: 0; transform: translateX(-50%); }
+.timeBoundary:nth-child(2) > span { transform: none; }
 .timeBoundary .finalBoundary { left: auto; right: 0; transform: translateX(50%); }
 .resourceLabel { font-size: 0.7rem; font-weight: 500; color: #c1d0d8; }
 .timelineCell { height: 3.1rem; border-top: 1px solid #33424c; border-right: 1px solid #2b3942; border-bottom: 1px solid #33424c; text-align: center; color: #607480; font-size: 0.9rem; background: #101a20; }
@@ -135,6 +136,21 @@
 .footer { margin-top: 2rem; padding-block: 1.25rem 1.8rem; border-top: 1px solid var(--border); color: #8397a3; font-size: 0.7rem; }
 .footer a { color: #b7cbc6; text-decoration: none; }
 .footer a:hover { text-decoration: underline; text-underline-offset: 0.25em; }
+
+.replacementDialog {
+  width: min(30rem, calc(100% - 2rem));
+  padding: 1.5rem;
+  border: 1px solid #536571;
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 1rem 4rem #0008;
+}
+
+.replacementDialog::backdrop { background: #050a10bb; }
+.replacementDialog h2 { margin: 0; font-size: 1.2rem; }
+.replacementDialog p { margin: 1rem 0 1.5rem; color: var(--muted); font-size: 0.85rem; }
+.replacementDialog .actions { flex-wrap: wrap; }
 
 @media (min-width: 1400px) {
   .timeline { min-width: 0; }
