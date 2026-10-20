@@ -4,6 +4,7 @@ import {
   type Attempt,
   type AttemptCell,
   type BoundarySnapshot,
+  type CpuCandidate,
   type Problem,
   type ProcessId,
   type ProcessState,
@@ -109,9 +110,94 @@ function describeCpuEvents(
       } else if (boundary.time > 0) {
         descriptions.push(`${event.processId} arrived at time ${boundary.time}.`)
       }
+    } else if (event.type === 'cpu-preempted') {
+      const { running, challenger } = event
+      descriptions.push(
+        event.reason === 'shorter-remaining-burst'
+          ? `SRTF preempts ${running.processId}: ${challenger.processId} has ${units(challenger.remainingCpu, 'CPU')} remaining in its current burst, strictly less than ${running.processId}'s ${units(running.remainingCpu, 'CPU')}.`
+          : `Preemptive priority preempts ${running.processId}: ${challenger.processId}'s priority ${challenger.priority} is higher than ${running.processId}'s priority ${running.priority}; smaller numbers mean higher priority.`,
+        `${running.processId} keeps its ${units(running.remainingCpu, 'CPU')} of unfinished CPU burst ${running.burst} and returns to the ready queue at time ${boundary.time}.`,
+      )
     }
   }
   return descriptions
+}
+
+function describeCandidates(
+  candidates: readonly CpuCandidate[],
+  byPriority: boolean,
+): string {
+  return candidates.map((candidate) => {
+    const quantity = byPriority
+      ? `priority ${candidate.priority}`
+      : `${units(candidate.remainingCpu, 'CPU')} remaining in burst ${candidate.burst}`
+    return `${candidate.processId} (${quantity}, ready since ${candidate.enteredAt})`
+  }).join(', ')
+}
+
+/** Explain ties using the recorded winner, without selecting a process again. */
+function describeSelectionTie(
+  candidates: readonly CpuCandidate[],
+  selected: ProcessId,
+  byPriority: boolean,
+): string {
+  const winner = candidates.find((candidate) => candidate.processId === selected)!
+  const tied = candidates.filter((candidate) => byPriority
+    ? candidate.priority === winner.priority
+    : candidate.remainingCpu === winner.remainingCpu)
+  if (tied.length === 1) return ''
+
+  const quantity = byPriority
+    ? `priority ${winner.priority}`
+    : `${units(winner.remainingCpu, 'CPU')} remaining`
+  const sameEntryTime = tied.filter((candidate) => candidate.enteredAt === winner.enteredAt)
+  const entryReason = tied.some((candidate) => candidate.enteredAt !== winner.enteredAt)
+    ? `${selected} has the earliest ready-entry time (${winner.enteredAt}) among these tied candidates.`
+    : `They share ready-entry time ${winner.enteredAt}.`
+  const idReason = sameEntryTime.length > 1
+    ? ` ${selected} has the lowest numeric process ID among those tied at that ready-entry time.`
+    : ''
+  return `${tied.map((candidate) => candidate.processId).join(', ')} tie at ${quantity}. ${entryReason}${idReason}`
+}
+
+function describeContinuation(
+  problem: Problem,
+  boundary: IntervalBoundary,
+  state: Extract<ProcessState, { status: 'running' }>,
+): string {
+  switch (problem.settings.algorithm) {
+    case 'fcfs-course':
+      return 'Course FCFS does not preempt an unfinished CPU burst.'
+    case 'round-robin':
+      return `Its current quantum still has ${state.quantumRemaining} ${state.quantumRemaining === 1 ? 'unit' : 'units'} left, so it keeps the CPU.`
+    case 'sjf':
+      return 'SJF does not preempt an unfinished CPU burst. It chooses the shortest current burst only when the CPU becomes free.'
+    case 'srtf':
+    case 'priority': {
+      const byPriority = problem.settings.algorithm === 'priority'
+      const ready = boundary.readyQueue.map((entry): CpuCandidate => {
+        const waiting = processState(boundary, entry.processId)
+        if (waiting.status !== 'ready') throw new Error('A ready queue member must be ready.')
+        return {
+          ...entry,
+          burst: waiting.burst,
+          remainingCpu: waiting.remainingCpu,
+          priority: problem.processes.find((input) => input.id === entry.processId)!.priority,
+        }
+      })
+      const candidates = ready.length === 0
+        ? 'No other process is ready.'
+        : `Ready candidates: ${describeCandidates(ready, byPriority)}.`
+      if (problem.settings.algorithm === 'srtf') {
+        return `${candidates} SRTF preempts only for a strictly shorter remaining current burst. Equal remaining lengths do not preempt the running process.`
+      }
+      const priority = problem.processes.find((input) => input.id === state.processId)!.priority
+      const rule = problem.settings.mode === 'non-preemptive'
+        ? 'Nonpreemptive priority does not preempt an unfinished CPU burst, even when a higher-priority process becomes ready.'
+        : 'Preemptive priority preempts only for a strictly higher priority. Equal priorities do not preempt the running process.'
+      return `${state.processId}'s priority is ${priority}; smaller numbers mean higher priority. ${candidates} ${rule}`
+    }
+  }
 }
 
 function describeCpu(
@@ -153,14 +239,26 @@ function describeCpu(
         `Round robin selects ${state.processId} from the front for CPU burst ${state.burst}, with ${units(state.remainingCpu, 'CPU')} remaining and a fresh ${state.quantumRemaining}-unit quantum.`,
       )
     } else {
-      throw new Error(`Unsupported grading criterion: ${dispatched.criterion}.`)
+      const byPriority = dispatched.criterion === 'highest-priority'
+      const selection = byPriority
+        ? `Priority scheduling selects ${state.processId} with the highest priority; smaller numbers mean higher priority.`
+        : dispatched.criterion === 'shortest-current-burst'
+          ? `SJF selects ${state.processId} with the shortest current CPU burst. Future CPU bursts and I/O work are excluded.`
+          : `SRTF selects ${state.processId} with the shortest remaining current CPU burst. Future CPU bursts and I/O work are excluded.`
+      context.push(
+        `Ready candidates: ${describeCandidates(dispatched.candidates, byPriority)}.`,
+        selection,
+      )
+      const tie = describeSelectionTie(dispatched.candidates, state.processId, byPriority)
+      if (tie) context.push(tie)
+      context.push(
+        `${state.processId} starts CPU burst ${state.burst} with ${units(state.remainingCpu, 'CPU')} remaining.`,
+      )
     }
   } else {
     context.push(
       `${state.processId} continues CPU burst ${state.burst} with ${units(state.remainingCpu, 'CPU')} remaining.`,
-      state.quantumRemaining === null
-        ? 'Course FCFS does not preempt an unfinished CPU burst.'
-        : `Its current quantum still has ${state.quantumRemaining} ${state.quantumRemaining === 1 ? 'unit' : 'units'} left, so it keeps the CPU.`,
+      describeContinuation(problem, boundary, state),
     )
   }
   return context.join(' ')
@@ -203,7 +301,7 @@ function describeIo(boundary: IntervalBoundary): string {
 
 /** Check both resources at each time and reveal only the earliest divergence. */
 export function gradeAttempt(problem: Problem, attempt: Attempt): GradeResult {
-  // The shared simulator validates the problem and rejects unsupported policies.
+  // The shared simulator validates the problem and records each policy decision.
   const solution = simulate(problem)
   if (solution.status !== 'complete') {
     throw new RangeError('Cannot grade a problem that does not finish within 40 intervals.')

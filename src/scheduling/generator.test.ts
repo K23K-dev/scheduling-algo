@@ -1,11 +1,20 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { createProblemSeed, generateProblem } from './generator'
+import { addMissingPriorities, createProblemSeed, generateProblem } from './generator'
 import * as simulator from './simulator'
-import type { Problem, SchedulingSettings, SimulationResult } from './types'
+import type { Problem, ProcessInput, SchedulingSettings, SimulationResult } from './types'
+import { parseProblem } from './validation'
 
 const realSimulate = simulator.simulate
 const fcfs = { algorithm: 'fcfs-course' } as const
 const rr = { algorithm: 'round-robin', quantum: 2 } as const
+const settingsCases: readonly SchedulingSettings[] = [
+  fcfs,
+  rr,
+  { algorithm: 'sjf' },
+  { algorithm: 'srtf' },
+  { algorithm: 'priority', mode: 'non-preemptive' },
+  { algorithm: 'priority', mode: 'preemptive' },
+]
 const overflow: SimulationResult = {
   status: 'limit-reached',
   completionTime: null,
@@ -16,18 +25,26 @@ const overflow: SimulationResult = {
 afterEach(() => vi.restoreAllMocks())
 
 describe('generateProblem', () => {
-  test('preserves the version-1 seeded workload contract', () => {
-    expect(generateProblem(42, fcfs)).toEqual({
+  test.each([fcfs, rr])('preserves the version-1 seeded workload contract: %j', (settings) => {
+    expect(generateProblem(42, settings)).toEqual({
       seed: 42,
       rulesVersion: 1,
       generatorVersion: 1,
-      settings: fcfs,
+      settings,
       processes: [
         { id: 'P1', arrival: 0, cpu1: 5, io: 3, cpu2: 7 },
         { id: 'P2', arrival: 0, cpu1: 6, io: 1, cpu2: 5 },
         { id: 'P3', arrival: 0, cpu1: 3, io: 4, cpu2: 7 },
       ],
     })
+  })
+
+  test('preserves the round-robin workload after rejecting earlier version-1 candidates', () => {
+    expect(generateProblem(607, rr).processes).toEqual([
+      { id: 'P1', arrival: 0, cpu1: 5, io: 3, cpu2: 6 },
+      { id: 'P2', arrival: 0, cpu1: 3, io: 4, cpu2: 7 },
+      { id: 'P3', arrival: 0, cpu1: 6, io: 5, cpu2: 8 },
+    ])
   })
 
   test.each([-1, 0x1_0000_0000, 1.5, NaN, Infinity, '42', null, undefined, true])(
@@ -53,19 +70,84 @@ describe('generateProblem', () => {
     { algorithm: 'round-robin', quantum: Infinity },
     { algorithm: 'round-robin', quantum: Number.MAX_SAFE_INTEGER + 1 },
     { algorithm: 'round-robin', quantum: 2, mode: 'preemptive' },
+    { algorithm: 'priority' },
+    { algorithm: 'priority', mode: 'unknown' },
+    { algorithm: 'priority', mode: 'preemptive', quantum: 2 },
+    { algorithm: 'sjf', mode: 'non-preemptive' },
   ])('rejects invalid settings %j before simulation', (settings) => {
     const simulation = vi.spyOn(simulator, 'simulate')
     expect(() => generateProblem(42, settings as SchedulingSettings)).toThrow(TypeError)
     expect(simulation).not.toHaveBeenCalled()
   })
 
-  test.each<SchedulingSettings>([
-    { algorithm: 'sjf' },
-    { algorithm: 'srtf' },
-    { algorithm: 'priority', mode: 'preemptive' },
-    { algorithm: 'priority', mode: 'non-preemptive' },
-  ])('rejects an unimplemented policy %j explicitly', (settings) => {
-    expect(() => generateProblem(42, settings)).toThrow('Unsupported scheduling algorithm')
+  test.each(settingsCases)('reproduces fitting complete workloads for every policy: %j', (settings) => {
+    for (const seed of [...Array.from({ length: 48 }, (_, index) => index), 0x8000_0000, 0xffff_ffff]) {
+      const problem = generateProblem(seed, settings)
+      expect(generateProblem(seed, settings)).toEqual(problem)
+      expect(parseProblem(problem).valid).toBe(true)
+      const result = realSimulate(problem)
+      expect(result.status).toBe('complete')
+      expect(result.completionTime).toBeGreaterThanOrEqual(28)
+      expect(result.completionTime).toBeLessThanOrEqual(40)
+      expect(result.timeline.cpu).toHaveLength(40)
+      expect(result.timeline.io).toHaveLength(40)
+      for (const process of problem.processes) {
+        expect(result.timeline.cpu.filter((cell) => cell === process.id)).toHaveLength(
+          process.cpu1 + process.cpu2,
+        )
+        expect(result.timeline.io.filter((cell) => cell === process.id)).toHaveLength(process.io)
+        if (settings.algorithm === 'priority') {
+          expect(process.priority).toBeGreaterThanOrEqual(1)
+          expect(process.priority).toBeLessThanOrEqual(5)
+        } else {
+          expect(process).not.toHaveProperty('priority')
+        }
+      }
+      result.timeline.cpu.forEach((cell, time) => {
+        if (cell !== 'idle') expect(result.timeline.io[time]).not.toBe(cell)
+      })
+    }
+  })
+
+  test('keeps the CPU/I/O stream separate from priorities and uses stable values in both modes', () => {
+    vi.spyOn(simulator, 'simulate').mockReturnValue({
+      ...overflow,
+      status: 'complete',
+      completionTime: 28,
+    })
+    const first = generateProblem(42, fcfs)
+    for (const settings of settingsCases) {
+      const candidate = generateProblem(42, settings)
+      expect(candidate.processes.map(({ id, arrival, cpu1, io, cpu2 }) => ({
+        id, arrival, cpu1, io, cpu2,
+      }))).toEqual(first.processes)
+      if (settings.algorithm === 'priority') {
+        expect(candidate.processes.map((process) => process.priority)).toEqual([3, 5, 4])
+      }
+    }
+  })
+
+  test('allows priority ties and keeps priorities stable after candidate rejection', () => {
+    let sawTie = false
+    for (let seed = 0; seed < 32; seed++) {
+      const nonPreemptive = generateProblem(seed, { algorithm: 'priority', mode: 'non-preemptive' })
+      const preemptive = generateProblem(seed, { algorithm: 'priority', mode: 'preemptive' })
+      const priorities = nonPreemptive.processes.map((process) => process.priority)
+      expect(preemptive.processes.map((process) => process.priority)).toEqual(priorities)
+      if (new Set(priorities).size < priorities.length) sawTie = true
+    }
+    expect(sawTie).toBe(true)
+    const evaluated: Problem[] = []
+    vi.spyOn(simulator, 'simulate').mockImplementation((problem) => {
+      evaluated.push(problem)
+      return evaluated.length <= 3 ? overflow : realSimulate(problem)
+    })
+    const accepted = generateProblem(42, { algorithm: 'priority', mode: 'preemptive' })
+    expect(evaluated.length).toBeGreaterThan(3)
+    expect(evaluated.at(-1)).toBe(accepted)
+    for (const candidate of evaluated) {
+      expect(candidate.processes.map((process) => process.priority)).toEqual([3, 5, 4])
+    }
   })
 
   test('generation does not use ambient randomness', () => {
@@ -120,7 +202,7 @@ describe('generateProblem', () => {
   })
 
   test.each<SchedulingSettings>([
-    fcfs, rr, { algorithm: 'round-robin', quantum: Number.MAX_SAFE_INTEGER },
+    ...settingsCases, { algorithm: 'round-robin', quantum: Number.MAX_SAFE_INTEGER },
   ])('stops after 100 rejected candidates and verifies a valid fallback: %j', (settings) => {
     const simulation = vi.spyOn(simulator, 'simulate').mockImplementation((problem) =>
       simulation.mock.calls.length <= 100 ? overflow : realSimulate(problem),
@@ -137,7 +219,12 @@ describe('generateProblem', () => {
         { id: 'P1', arrival: 0, cpu1: 5, io: 3, cpu2: 4 },
         { id: 'P2', arrival: 0, cpu1: 4, io: 4, cpu2: 5 },
         { id: 'P3', arrival: 0, cpu1: 6, io: 2, cpu2: 4 },
-      ],
+      ].map((process, index) => ({
+        ...process,
+        ...(settings.algorithm === 'priority'
+          ? { priority: [5, 3, 2][index] }
+          : {}),
+      })),
     })
     const solution = realSimulate(result)
     expect(solution.status).toBe('complete')
@@ -157,6 +244,41 @@ describe('generateProblem', () => {
     })
     expect(() => generateProblem(7, fcfs)).toThrow('Simulation failed')
     expect(simulation).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('addMissingPriorities', () => {
+  const processes: readonly ProcessInput[] = [
+    { id: 'P10', arrival: 0, cpu1: 1, io: 1, cpu2: 1 },
+    { id: 'P2', arrival: 0, cpu1: 1, io: 1, cpu2: 1 },
+    { id: 'P1', arrival: 0, cpu1: 1, io: 1, cpu2: 1 },
+  ]
+
+  test('draws by numeric process order while preserving the input order and burst data', () => {
+    expect(addMissingPriorities(42, processes)).toEqual([
+      { ...processes[0], priority: 4 },
+      { ...processes[1], priority: 5 },
+      { ...processes[2], priority: 3 },
+    ])
+    expect(addMissingPriorities(42, [...processes].reverse())).toEqual(
+      [...addMissingPriorities(42, processes)].reverse(),
+    )
+  })
+
+  test('retains existing priorities without shifting the missing values or mutating input', () => {
+    const partial = processes.map((process) => Object.freeze(
+      process.id === 'P2' ? { ...process, priority: -7 } : { ...process },
+    ))
+    Object.freeze(partial)
+    const enriched = addMissingPriorities(42, partial)
+    expect(enriched).toEqual([
+      { ...processes[0], priority: 4 },
+      { ...processes[1], priority: -7 },
+      { ...processes[2], priority: 3 },
+    ])
+    expect(addMissingPriorities(42, enriched)).toEqual(enriched)
+    expect(partial[0]).not.toHaveProperty('priority')
+    expect(enriched[1]).not.toBe(partial[1])
   })
 })
 

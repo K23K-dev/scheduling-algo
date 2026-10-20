@@ -104,7 +104,7 @@ describe('practice workspace', () => {
     expectSeed(42)
   })
 
-  test('shows all five planned algorithms and disables those not yet available', () => {
+  test('makes all five scheduling algorithms available', () => {
     render(<App />)
 
     const options = within(
@@ -113,12 +113,8 @@ describe('practice workspace', () => {
     expect(options).toHaveLength(5)
     for (const option of options) {
       const value = (option as HTMLOptionElement).value
-      if (value === 'fcfs-course' || value === 'round-robin') {
-        expect(option).toBeEnabled()
-      } else {
-        expect(['sjf', 'srtf', 'priority']).toContain(value)
-        expect(option).toBeDisabled()
-      }
+      expect(['fcfs-course', 'round-robin', 'sjf', 'srtf', 'priority']).toContain(value)
+      expect(option).toBeEnabled()
     }
   })
 

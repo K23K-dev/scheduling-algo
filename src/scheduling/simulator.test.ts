@@ -575,16 +575,12 @@ describe('simulator input boundaries', () => {
     )
   })
 
-  test('explicitly rejects each valid algorithm that has not been implemented yet', () => {
-    const settings: readonly SchedulingSettings[] = [
-      { algorithm: 'sjf' },
-      { algorithm: 'srtf' },
-      { algorithm: 'priority', mode: 'preemptive' },
-      { algorithm: 'priority', mode: 'non-preemptive' },
-    ]
-    for (const item of settings) {
-      const input = problem([{ ...process('P1', 1, 1, 1), priority: 1 }], item)
-      expect(() => simulate(input)).toThrow(/not supported|unsupported|not implemented/i)
-    }
+  test('rejects missing priorities and unknown algorithms through structural validation', () => {
+    expect(() => simulate(problem([process('P1', 1, 1, 1)], {
+      algorithm: 'priority', mode: 'preemptive',
+    }))).toThrow(/processes\[0\]\.priority/)
+    expect(() => simulate(problem([process('P1', 1, 1, 1)], {
+      algorithm: 'unknown',
+    } as unknown as SchedulingSettings))).toThrow(/settings\.algorithm/)
   })
 })

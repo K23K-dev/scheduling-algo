@@ -1,7 +1,9 @@
 import {
   compareLaunchOrder,
   compareProcessIds,
+  compareReadyEntries,
   getBoundaryPhases,
+  shouldPreempt,
   shouldRequeueAfterQuantum,
 } from './rules'
 import {
@@ -19,11 +21,6 @@ import {
   type SimulationResult,
 } from './types'
 import { parseProblem } from './validation'
-
-type SupportedSettings = Extract<
-  SchedulingSettings,
-  { readonly algorithm: 'fcfs-course' | 'round-robin' }
->
 
 interface RuntimeProcess {
   readonly input: ProcessInput
@@ -164,8 +161,8 @@ function dispatchIo(engine: Engine, time: number, events: SimulationEvent[]): vo
 }
 
 function cpuCandidate(process: RuntimeProcess): CpuCandidate {
-  if (process.state.status !== 'ready') {
-    throw new Error('A ready queue entry is not ready for the CPU.')
+  if (process.state.status !== 'ready' && process.state.status !== 'running') {
+    throw new Error('A CPU candidate is neither ready nor running.')
   }
   return {
     processId: process.input.id,
@@ -176,20 +173,89 @@ function cpuCandidate(process: RuntimeProcess): CpuCandidate {
   }
 }
 
+function compareCandidates(
+  a: RuntimeProcess,
+  b: RuntimeProcess,
+  settings: SchedulingSettings,
+): number {
+  if (settings.algorithm === 'fcfs-course') return compareLaunchOrder(a.input, b.input)
+  // Keep the actual FIFO order, including an expired process appended last.
+  if (settings.algorithm === 'round-robin') return 0
+  const first = cpuCandidate(a)
+  const second = cpuCandidate(b)
+  const rank = settings.algorithm === 'priority'
+    // parseProblem requires safe integer priorities before simulation starts.
+    ? first.priority! - second.priority!
+    : first.remainingCpu - second.remainingCpu
+  return rank || compareReadyEntries(first, second)
+}
+
+function selectReadyProcess(engine: Engine, settings: SchedulingSettings): RuntimeProcess {
+  return engine.readyQueue.reduce((best, candidate) =>
+    compareCandidates(candidate, best, settings) < 0 ? candidate : best,
+  )
+}
+
+function preemptCpu(
+  engine: Engine,
+  time: number,
+  settings: SchedulingSettings,
+  events: SimulationEvent[],
+): void {
+  if (
+    engine.cpu === null ||
+    engine.readyQueue.length === 0 ||
+    (settings.algorithm !== 'srtf' &&
+      !(settings.algorithm === 'priority' && settings.mode === 'preemptive'))
+  ) {
+    return
+  }
+
+  const process = engine.cpu
+  const running = cpuCandidate(process)
+  const challenger = cpuCandidate(selectReadyProcess(engine, settings))
+  // Selection ties never interrupt the current burst.
+  if (!shouldPreempt(settings, running, challenger)) return
+
+  events.push({
+    type: 'cpu-preempted',
+    reason: settings.algorithm === 'srtf' ? 'shorter-remaining-burst' : 'higher-priority',
+    running,
+    challenger,
+  })
+  process.state = {
+    processId: process.input.id,
+    status: 'ready',
+    burst: running.burst,
+    remainingCpu: running.remainingCpu,
+    enteredAt: time,
+  }
+  // Newly ready processes have already joined; the interrupted process joins last.
+  engine.readyQueue.push(process)
+  engine.cpu = null
+}
+
+function dispatchCriterion(
+  settings: SchedulingSettings,
+): Extract<SimulationEvent, { type: 'cpu-dispatched' }>['criterion'] {
+  switch (settings.algorithm) {
+    case 'fcfs-course': return 'original-launch-order'
+    case 'round-robin': return 'fifo-ready-queue'
+    case 'sjf': return 'shortest-current-burst'
+    case 'srtf': return 'shortest-remaining-burst'
+    case 'priority': return 'highest-priority'
+  }
+}
+
 function dispatchCpu(
   engine: Engine,
-  settings: SupportedSettings,
+  settings: SchedulingSettings,
   events: SimulationEvent[],
 ): void {
   if (engine.cpu !== null || engine.readyQueue.length === 0) return
 
-  // RR takes the FIFO head; course FCFS selects without rearranging the queue.
-  const process =
-    settings.algorithm === 'round-robin'
-      ? engine.readyQueue[0]
-      : engine.readyQueue.reduce((earliest, candidate) =>
-          compareLaunchOrder(candidate.input, earliest.input) < 0 ? candidate : earliest,
-        )
+  // Select without rearranging the queue, preserving FIFO history for explanations.
+  const process = selectReadyProcess(engine, settings)
   const candidates = engine.readyQueue.map(cpuCandidate)
   const selected = cpuCandidate(process)
   engine.readyQueue.splice(engine.readyQueue.indexOf(process), 1)
@@ -207,7 +273,7 @@ function dispatchCpu(
     processId: process.input.id,
     burst: selected.burst,
     candidates,
-    criterion: settings.algorithm === 'round-robin' ? 'fifo-ready-queue' : 'original-launch-order',
+    criterion: dispatchCriterion(settings),
   })
 }
 
@@ -273,8 +339,8 @@ function executeInterval(engine: Engine): void {
 }
 
 /**
- * Simulate course FCFS or round robin without mutating the problem or using external state.
- * Invalid inputs and unimplemented policies throw instead of producing an answer.
+ * Simulate the selected policy without mutating the problem or using external state.
+ * Invalid inputs throw instead of producing an answer.
  * Valid workloads that do not finish by 40 return limit-reached with their progress.
  */
 export function simulate(input: Problem): SimulationResult {
@@ -288,12 +354,6 @@ export function simulate(input: Problem): SimulationResult {
   }
   const problem = parsed.value
   const settings = problem.settings
-  if (settings.algorithm !== 'fcfs-course' && settings.algorithm !== 'round-robin') {
-    throw new Error(
-      `Unsupported scheduling algorithm: ${settings.algorithm}. Only course FCFS and round robin are implemented.`,
-    )
-  }
-
   const engine: Engine = {
     processes: problem.processes
       .toSorted((a, b) => compareProcessIds(a.id, b.id))
@@ -324,6 +384,7 @@ export function simulate(input: Problem): SimulationResult {
           break
         case 'preemption':
           if (settings.algorithm === 'round-robin') expireQuantum(engine, time, events)
+          else preemptCpu(engine, time, settings, events)
           break
         case 'dispatch':
           dispatchIo(engine, time, events)

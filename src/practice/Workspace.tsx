@@ -2,7 +2,13 @@ import { getSchedulingRule, SHARED_SCHEDULING_RULES } from '../scheduling/rules'
 import type { ProcessInput, SchedulingSettings } from '../scheduling/types'
 import styles from '../App.module.css'
 
-export function ProcessTable({ processes }: { readonly processes: readonly ProcessInput[] }) {
+export function ProcessTable({
+  processes,
+  showPriority = false,
+}: {
+  readonly processes: readonly ProcessInput[]
+  readonly showPriority?: boolean
+}) {
   return (
     <section className={styles.panel} aria-labelledby="processes-title">
       <div className={styles.panelHeading}>
@@ -18,6 +24,7 @@ export function ProcessTable({ processes }: { readonly processes: readonly Proce
               <th scope="col">CPU 1</th>
               <th scope="col">I/O</th>
               <th scope="col">CPU 2</th>
+              {showPriority ? <th scope="col">Priority</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -28,12 +35,16 @@ export function ProcessTable({ processes }: { readonly processes: readonly Proce
                 <td>{process.cpu1}</td>
                 <td>{process.io}</td>
                 <td>{process.cpu2}</td>
+                {showPriority ? <td>{process.priority}</td> : null}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className={styles.panelFootnote}>All processes arrive at time 0. Burst lengths are in time units.</p>
+      <p className={styles.panelFootnote}>
+        All processes arrive at time 0. Burst lengths are in time units.
+        {showPriority ? ' Smaller priority numbers mean higher priority.' : null}
+      </p>
     </section>
   )
 }

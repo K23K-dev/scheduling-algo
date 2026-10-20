@@ -1,4 +1,5 @@
 import { simulate } from './simulator'
+import { compareProcessIds } from './rules'
 import {
   GENERATOR_VERSION,
   RULES_VERSION,
@@ -35,6 +36,30 @@ function seededIntegers(seed: number): (max: number) => number {
   }
 }
 
+/**
+ * Add priorities to an already validated workload without changing its bursts.
+ * Version 1 uses an independent Mulberry32 stream seeded by seed XOR 0x9e3779b9:
+ * one draw in [1,5] per process in numeric ID order, including processes that
+ * already have priorities. Keep existing values and the original array order.
+ * The stream restarts for each candidate and the fallback, so modes and rejected
+ * candidates never change a generated priority or the CPU/I/O draw stream.
+ */
+export function addMissingPriorities(
+  seed: number,
+  processes: readonly ProcessInput[],
+): readonly ProcessInput[] {
+  const nextPriority = seededIntegers((seed ^ 0x9e3779b9) >>> 0)
+  const generated = new Map(
+    [...processes]
+      .sort((a, b) => compareProcessIds(a.id, b.id))
+      .map((process) => [process.id, nextPriority(5)] as const),
+  )
+  return processes.map((process) => ({
+    ...process,
+    priority: process.priority ?? generated.get(process.id)!,
+  }))
+}
+
 function fitsWorksheet(problem: Problem): boolean {
   const result = simulate(problem)
   return (
@@ -49,23 +74,16 @@ function fitsWorksheet(problem: Problem): boolean {
  * are discarded whole; no burst is clipped or shortened to fit the worksheet.
  */
 export function generateProblem(seed: number, settings: SchedulingSettings): Problem {
-  if (
-    settings?.algorithm === 'sjf' ||
-    settings?.algorithm === 'srtf' ||
-    settings?.algorithm === 'priority'
-  ) {
-    throw new Error(
-      `Unsupported scheduling algorithm: ${settings.algorithm}. Only course FCFS and round robin are implemented.`,
-    )
-  }
-
   // Reuse the model's seed/settings validation and obtain detached fallback data.
   const parsed = parseProblem({
     seed,
     settings,
     rulesVersion: RULES_VERSION,
     generatorVersion: GENERATOR_VERSION,
-    processes: FALLBACK_PROCESSES,
+    processes:
+      settings?.algorithm === 'priority'
+        ? FALLBACK_PROCESSES.map((process) => ({ ...process, priority: 1 }))
+        : FALLBACK_PROCESSES,
   })
   if (!parsed.valid) {
     throw new TypeError(
@@ -75,24 +93,34 @@ export function generateProblem(seed: number, settings: SchedulingSettings): Pro
     )
   }
 
-  const fallback = parsed.value
+  const fallback: Problem = {
+    ...parsed.value,
+    processes:
+      parsed.value.settings.algorithm === 'priority'
+        ? addMissingPriorities(parsed.value.seed, FALLBACK_PROCESSES)
+        : parsed.value.processes,
+  }
   const nextInteger = seededIntegers(fallback.seed)
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const processes = PROCESS_IDS.map((id) => ({
+      id,
+      arrival: 0,
+      cpu1: nextInteger(8),
+      io: nextInteger(5),
+      cpu2: nextInteger(8),
+    }))
     const candidate: Problem = {
       ...fallback,
-      processes: PROCESS_IDS.map((id) => ({
-        id,
-        arrival: 0,
-        cpu1: nextInteger(8),
-        io: nextInteger(5),
-        cpu2: nextInteger(8),
-      })),
+      processes:
+        fallback.settings.algorithm === 'priority'
+          ? addMissingPriorities(fallback.seed, processes)
+          : processes,
     }
     if (fitsWorksheet(candidate)) return candidate
   }
 
   // All arrive at zero: 28 CPU units + 9 I/O units bound completion to [28,37]
-  // under either work-conserving policy, even if none of that work overlaps.
+  // under every work-conserving policy, even if none of that work overlaps.
   if (!fitsWorksheet(fallback)) {
     throw new Error('The generator fallback no longer fits the worksheet.')
   }

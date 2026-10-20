@@ -10,7 +10,8 @@ import { ReplaceProblemDialog } from './practice/ReplaceProblemDialog'
 import { attemptReducer, createAttemptHistory, type AttemptAction } from './practice/attempt'
 import styles from './App.module.css'
 
-type AvailableAlgorithm = 'fcfs-course' | 'round-robin'
+type AvailableAlgorithm = SchedulingSettings['algorithm']
+type PriorityMode = Extract<SchedulingSettings, { algorithm: 'priority' }>['mode']
 
 export default function App() {
   const [problem, setProblem] = useState(() =>
@@ -18,6 +19,7 @@ export default function App() {
   )
   const [algorithm, setAlgorithm] = useState<AvailableAlgorithm>('fcfs-course')
   const [quantum, setQuantum] = useState('2')
+  const [priorityMode, setPriorityMode] = useState<PriorityMode>('non-preemptive')
   const [quantumError, setQuantumError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState('Problem ready. All three processes arrive at time 0.')
@@ -27,7 +29,8 @@ export default function App() {
   const [checkError, setCheckError] = useState<string | null>(null)
   const activeRule = getSchedulingRule(problem.settings)
   const pendingSettings = algorithm !== problem.settings.algorithm ||
-    (problem.settings.algorithm === 'round-robin' && Number(quantum) !== problem.settings.quantum)
+    (problem.settings.algorithm === 'round-robin' && Number(quantum) !== problem.settings.quantum) ||
+    (problem.settings.algorithm === 'priority' && priorityMode !== problem.settings.mode)
 
   function clearFeedback() {
     setFeedback(null)
@@ -62,7 +65,9 @@ export default function App() {
     setQuantumError(null)
     const settings: SchedulingSettings = algorithm === 'round-robin'
       ? { algorithm, quantum: Number(quantum) }
-      : { algorithm }
+      : algorithm === 'priority'
+        ? { algorithm, mode: priorityMode }
+        : { algorithm }
     const action = (event.nativeEvent as SubmitEvent).submitter?.getAttribute('value')
 
     try {
@@ -131,7 +136,10 @@ export default function App() {
                 aria-describedby="settings-help"
                 onChange={(event) => {
                   const value = event.target.value
-                  if (value === 'fcfs-course' || value === 'round-robin') {
+                  if (
+                    value === 'fcfs-course' || value === 'round-robin' ||
+                    value === 'sjf' || value === 'srtf' || value === 'priority'
+                  ) {
                     setAlgorithm(value)
                     setQuantumError(null)
                     setError(null)
@@ -140,9 +148,9 @@ export default function App() {
               >
                 <option value="fcfs-course">FCFS — course launch order</option>
                 <option value="round-robin">Round robin</option>
-                <option value="sjf" disabled>SJF — coming soon</option>
-                <option value="srtf" disabled>SRTF — coming soon</option>
-                <option value="priority" disabled>Priority — coming soon</option>
+                <option value="sjf">SJF</option>
+                <option value="srtf">SRTF</option>
+                <option value="priority">Priority</option>
               </select>
             </div>
             {algorithm === 'round-robin' ? (
@@ -165,6 +173,26 @@ export default function App() {
                 />
               </div>
             ) : null}
+            {algorithm === 'priority' ? (
+              <div className={styles.priorityField}>
+                <label htmlFor="priority-mode">Priority mode</label>
+                <select
+                  id="priority-mode"
+                  value={priorityMode}
+                  aria-describedby="priority-help"
+                  onChange={(event) => {
+                    const value = event.target.value
+                    if (value === 'preemptive' || value === 'non-preemptive') {
+                      setPriorityMode(value)
+                      setError(null)
+                    }
+                  }}
+                >
+                  <option value="non-preemptive">Non-preemptive</option>
+                  <option value="preemptive">Preemptive</option>
+                </select>
+              </div>
+            ) : null}
             <div className={styles.actions}>
               <button type="submit" name="action" value="apply" className={styles.secondaryButton}>
                 Apply settings
@@ -181,6 +209,9 @@ export default function App() {
                 : 'Apply settings to reuse this workload. New problem generates a fresh one.'}
             </p>
             {algorithm === 'round-robin' ? <p id="quantum-help">Try a quantum of 2–4 time units.</p> : null}
+            {algorithm === 'priority' ? (
+              <p id="priority-help">Smaller numbers mean higher priority. Apply settings to see the process priorities.</p>
+            ) : null}
           </div>
           {quantumError ? <p id="quantum-error" className={styles.error} role="alert">{quantumError}</p> : null}
         </form>
@@ -193,7 +224,7 @@ export default function App() {
         <span className={styles.seed}>Seed <span>{problem.seed}</span></span>
       </div>
       <div className={styles.problemLayout}>
-        <ProcessTable processes={problem.processes} />
+        <ProcessTable processes={problem.processes} showPriority={problem.settings.algorithm === 'priority'} />
         <RulesPanel settings={problem.settings} />
       </div>
       <Worksheet

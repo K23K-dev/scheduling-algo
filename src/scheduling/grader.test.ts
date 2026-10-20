@@ -204,13 +204,13 @@ describe('grading', () => {
     { algorithm: 'srtf' },
     { algorithm: 'priority', mode: 'preemptive' },
     { algorithm: 'priority', mode: 'non-preemptive' },
-  ] as const)('rejects unimplemented scheduling policies: $algorithm', (settings) => {
+  ] as const)('grades a single process under $algorithm $mode', (settings) => {
     const input = {
       ...single,
       settings,
       processes: single.processes.map((item) => ({ ...item, priority: 1 })),
     }
-    expect(() => gradeAttempt(input, singleAnswer)).toThrow(/Unsupported scheduling algorithm/)
+    expect(gradeAttempt(input, singleAnswer)).toEqual({ status: 'correct' })
   })
 
   test('rejects a truncated schedule even when all 40 visible cells match', () => {

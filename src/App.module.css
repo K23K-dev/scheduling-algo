@@ -54,6 +54,7 @@
 .controlFields label { display: block; margin-bottom: 0.45rem; color: #bac5cb; font-size: 0.75rem; font-weight: 550; }
 .algorithmField { flex: 1; max-width: 26rem; min-width: 0; }
 .quantumField { width: 8rem; flex-shrink: 0; }
+.priorityField { width: 13rem; flex-shrink: 0; }
 .controlFields select,
 .controlFields input { width: 100%; height: 2.8rem; padding: 0.5rem 0.75rem; border: 1px solid #39454c; border-radius: 5px; background: #0e151a; color: var(--text); font-size: 0.85rem; }
 .controlFields select { padding-right: 1.5rem; cursor: pointer; }
@@ -174,7 +175,8 @@
   .sectionHeading { flex-wrap: wrap; gap: 0.35rem; }
   .sectionHeading .muted { padding-left: 1.75rem; font-size: 0.67rem; }
   .algorithmField { flex-basis: 100%; }
-  .quantumField { width: 100%; }
+  .quantumField,
+  .priorityField { width: 100%; }
   .actions { width: 100%; }
   .actions button { flex: 1; padding-inline: 0.65rem; }
   .notice { margin-inline: -1rem; padding-inline: 1rem; }
