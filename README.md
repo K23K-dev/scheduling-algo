@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The app foundation, scheduling data model, and shared simulator for course FCFS and round robin are implemented with input validation and automated tests. SJF, SRTF, priority scheduling, and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** The app foundation, scheduling data model, shared simulator, and seeded problem generator for course FCFS and round robin are implemented with input validation and automated tests. SJF, SRTF, priority scheduling, and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -164,7 +164,7 @@ Generate a candidate workload, solve it, and keep it only if it satisfies the pr
 - Do not require every problem to contain every teaching case. Use difficulty settings or scenario categories later.
 - When changing algorithms or quantum, revalidate the workload. If it no longer fits, explain that and generate a new problem.
 
-The initial generator can use three processes, CPU bursts of 1–8 units, I/O bursts of 1–5 units, and round-robin quanta of 2–4 units. These are candidate ranges, not a guarantee that every sample fits.
+Generator version 1 uses three processes arriving at time 0, CPU bursts of 1–8 units, and I/O bursts of 1–5 units. It accepts schedules finishing between times 28 and 40, inclusive. These candidate ranges do not guarantee that every sample fits. Round-robin quanta of 2–4 units are suggested practice settings; the generator accepts any positive safe integer quantum.
 
 ## Scheduling metrics
 
@@ -209,7 +209,7 @@ Keep editable answers separate from the reference solution. Record enough state 
 The React-independent modules in `src/scheduling/` define the scheduling contracts:
 
 - `Problem` holds process inputs, algorithm settings, an unsigned 32-bit seed, and rules/generator versions. `parseProblem` accepts unknown data and returns either a detached, validated problem or errors with field paths. It requires positive integer bursts and quantum, nonnegative integer arrivals, and unique IDs such as P1 and P2. Numeric fields must be safe integers. Priority can be any safe integer, with smaller values ranking higher; it is required only for priority scheduling.
-- Structural validation deliberately allows small fixtures, staggered arrivals, and values outside the generator's proposed ranges. It does **not** establish that a workload finishes by time 40; the simulator will check that separately. Unsupported versions and irrelevant settings, such as a quantum on SJF, are rejected.
+- Structural validation deliberately allows small fixtures, staggered arrivals, and values outside the generator's ranges. It does **not** establish that a workload finishes by time 40; the simulator checks that separately. Unsupported versions and irrelevant settings, such as a quantum on SJF, are rejected.
 - An `Attempt` contains only editable CPU/I/O rows: `null` means unanswered, `"idle"` means intentionally Idle, and a process ID means an assignment. `parseAttempt` checks two 40-cell rows and valid process references, without grading the learner's choices. Reference timelines cannot contain unanswered cells.
 - Process states distinguish not arrived, ready, running, waiting for I/O, performing I/O, and completed. Boundary snapshots retain process work, ordered queues, resource assignments, and decision events. Snapshots at times 0–39 describe the state after dispatch and before execution; a terminal snapshot at 40 records final bookkeeping without another interval.
 - Rule helpers describe boundary phases, numeric process ordering, launch-order and ready-entry tie-breaks, strict preemption, and completion-before-quantum-expiration behavior. Ready-entry timestamps and actual FIFO queue positions remain separate.
@@ -222,9 +222,19 @@ The result contains two 40-cell reference timelines and 41 independent boundary 
 
 Round robin takes the head of the ready queue and gives it a fresh quantum on every dispatch. CPU execution decreases both its remaining burst and quantum. An unfinished process whose quantum expires joins the queue after existing waiters and this boundary's arrivals/I/O returns, retaining its remaining work and receiving a new ready-entry timestamp. A process can immediately receive another full quantum if nobody else is ready. Blocking or completion discards unused quantum; a CPU burst ending exactly at expiration blocks or completes without being requeued. A new arrival or I/O return alone does not interrupt a running turn.
 
-A completed workload returns `status: "complete"` with its actual `completionTime`; trailing timeline cells are Idle. Completion exactly at 40 is valid. Unfinished work returns `status: "limit-reached"` with `completionTime: null` and its remaining work recorded at boundary 40. The engine never executes an extra interval or changes burst lengths to make a workload fit. The generator will reject these unfinished workloads.
+A completed workload returns `status: "complete"` with its actual `completionTime`; trailing timeline cells are Idle. Completion exactly at 40 is valid. Unfinished work returns `status: "limit-reached"` with `completionTime: null` and its remaining work recorded at boundary 40. The engine never executes an extra interval or changes burst lengths to make a workload fit. The generator rejects these unfinished workloads.
 
 Hand-calculated tests cover overlap, I/O contention, blocked CPU idleness, launch-order selection after I/O, round-robin rotation, fresh quanta, simultaneous arrivals/I/O returns/expiration, and the worksheet limit. Additional invariant tests verify resource exclusivity, conserved work, FIFO queues, time-slice accounting, and reproducible, independent history snapshots across varied workloads. Boundary 40 still performs completion and queue bookkeeping, including unfinished quantum expiration, without dispatching or executing more work.
+
+### Generator
+
+`generateProblem(seed, settings)` in `src/scheduling/generator.ts` returns a detached `Problem` for course FCFS or round robin. It validates the unsigned 32-bit seed and settings, then uses a local seeded random stream to sample P1, P2, and P3 in order, drawing CPU 1, I/O, then CPU 2 for each process. The same seed, settings, and versions reproduce the same workload, regardless of other generation calls. Unsupported algorithms fail explicitly until their simulators are implemented.
+
+Every candidate is checked by `simulate`. The first schedule completing in 28–40 intervals is accepted; rejected workloads are discarded without changing their bursts. After 100 rejected candidates, the generator checks and returns a fixed fallback with 28 units of CPU work and 9 units of I/O work. Since all processes arrive at zero and both supported policies keep working whenever work is available, that fallback finishes between times 28 and 37 for any valid quantum. A failed fallback check throws instead of returning an invalid worksheet.
+
+`createProblemSeed(previousSeed?)` draws a new unsigned 32-bit seed and avoids repeating the supplied current seed. Use it for **New problem**; **Retry** should retain the existing `Problem`. Store the actual processes along with their seed, settings, and versions. Changes to the random stream, sample order, ranges, acceptance rules, attempt limit, or fallback require a generator-version change. When changing settings, first simulate the existing workload under those settings; the practice interface will handle explaining an overflow and generating a replacement.
+
+Generator tests cover fixed-seed reproduction, invalid inputs, completion exactly at 40, whole-candidate rejection, bounded fallback, and independent returned objects. Tests across 490 seeded worksheets check that all original work fits and that the set includes CPU/I/O overlap, I/O contention, blocked CPU idle time, and meaningful round-robin expiration.
 
 ## Local development
 
