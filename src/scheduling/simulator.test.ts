@@ -577,7 +577,6 @@ describe('simulator input boundaries', () => {
 
   test('explicitly rejects each valid algorithm that has not been implemented yet', () => {
     const settings: readonly SchedulingSettings[] = [
-      { algorithm: 'round-robin', quantum: 3 },
       { algorithm: 'sjf' },
       { algorithm: 'srtf' },
       { algorithm: 'priority', mode: 'preemptive' },

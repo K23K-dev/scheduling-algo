@@ -1,4 +1,9 @@
-import { compareLaunchOrder, compareProcessIds, getBoundaryPhases } from './rules'
+import {
+  compareLaunchOrder,
+  compareProcessIds,
+  getBoundaryPhases,
+  shouldRequeueAfterQuantum,
+} from './rules'
 import {
   TIMELINE_LENGTH,
   type BoundarySnapshot,
@@ -9,10 +14,16 @@ import {
   type ProcessState,
   type ReadyQueueEntry,
   type ReferenceCell,
+  type SchedulingSettings,
   type SimulationEvent,
   type SimulationResult,
 } from './types'
 import { parseProblem } from './validation'
+
+type SupportedSettings = Extract<
+  SchedulingSettings,
+  { readonly algorithm: 'fcfs-course' | 'round-robin' }
+>
 
 interface RuntimeProcess {
   readonly input: ProcessInput
@@ -105,6 +116,35 @@ function addNewlyReady(
   }
 }
 
+function expireQuantum(engine: Engine, time: number, events: SimulationEvent[]): void {
+  const process = engine.cpu
+  if (process === null) return
+  const state = process.state
+  if (
+    state.status !== 'running' ||
+    state.quantumRemaining === null ||
+    !shouldRequeueAfterQuantum(state.remainingCpu, state.quantumRemaining)
+  ) {
+    return
+  }
+
+  // Completion was handled first, and arrivals/I/O returns are already queued.
+  process.state = {
+    processId: process.input.id,
+    status: 'ready',
+    burst: state.burst,
+    remainingCpu: state.remainingCpu,
+    enteredAt: time,
+  }
+  engine.readyQueue.push(process)
+  engine.cpu = null
+  events.push({
+    type: 'quantum-expired',
+    processId: process.input.id,
+    remainingCpu: state.remainingCpu,
+  })
+}
+
 function dispatchIo(engine: Engine, time: number, events: SimulationEvent[]): void {
   if (engine.io !== null) return
 
@@ -136,13 +176,20 @@ function cpuCandidate(process: RuntimeProcess): CpuCandidate {
   }
 }
 
-function dispatchCourseFcfs(engine: Engine, events: SimulationEvent[]): void {
+function dispatchCpu(
+  engine: Engine,
+  settings: SupportedSettings,
+  events: SimulationEvent[],
+): void {
   if (engine.cpu !== null || engine.readyQueue.length === 0) return
 
-  // Select by original launch order without rearranging the FIFO ready queue.
-  const process = engine.readyQueue.reduce((earliest, candidate) =>
-    compareLaunchOrder(candidate.input, earliest.input) < 0 ? candidate : earliest,
-  )
+  // RR takes the FIFO head; course FCFS selects without rearranging the queue.
+  const process =
+    settings.algorithm === 'round-robin'
+      ? engine.readyQueue[0]
+      : engine.readyQueue.reduce((earliest, candidate) =>
+          compareLaunchOrder(candidate.input, earliest.input) < 0 ? candidate : earliest,
+        )
   const candidates = engine.readyQueue.map(cpuCandidate)
   const selected = cpuCandidate(process)
   engine.readyQueue.splice(engine.readyQueue.indexOf(process), 1)
@@ -152,7 +199,7 @@ function dispatchCourseFcfs(engine: Engine, events: SimulationEvent[]): void {
     burst: selected.burst,
     remainingCpu: selected.remainingCpu,
     enteredAt: selected.enteredAt,
-    quantumRemaining: null,
+    quantumRemaining: settings.algorithm === 'round-robin' ? settings.quantum : null,
   }
   engine.cpu = process
   events.push({
@@ -160,7 +207,7 @@ function dispatchCourseFcfs(engine: Engine, events: SimulationEvent[]): void {
     processId: process.input.id,
     burst: selected.burst,
     candidates,
-    criterion: 'original-launch-order',
+    criterion: settings.algorithm === 'round-robin' ? 'fifo-ready-queue' : 'original-launch-order',
   })
 }
 
@@ -207,7 +254,14 @@ function executeInterval(engine: Engine): void {
     if (state.status !== 'running' || state.remainingCpu <= 0) {
       throw new Error('The CPU cannot execute a process without remaining CPU work.')
     }
-    engine.cpu.state = { ...state, remainingCpu: state.remainingCpu - 1 }
+    if (state.quantumRemaining !== null && state.quantumRemaining <= 0) {
+      throw new Error('The CPU cannot execute a process with an expired quantum.')
+    }
+    engine.cpu.state = {
+      ...state,
+      remainingCpu: state.remainingCpu - 1,
+      quantumRemaining: state.quantumRemaining === null ? null : state.quantumRemaining - 1,
+    }
   }
   if (engine.io !== null) {
     const state = engine.io.state
@@ -219,7 +273,7 @@ function executeInterval(engine: Engine): void {
 }
 
 /**
- * Simulate course FCFS without mutating the problem or using external state.
+ * Simulate course FCFS or round robin without mutating the problem or using external state.
  * Invalid inputs and unimplemented policies throw instead of producing an answer.
  * Valid workloads that do not finish by 40 return limit-reached with their progress.
  */
@@ -233,9 +287,10 @@ export function simulate(input: Problem): SimulationResult {
     )
   }
   const problem = parsed.value
-  if (problem.settings.algorithm !== 'fcfs-course') {
+  const settings = problem.settings
+  if (settings.algorithm !== 'fcfs-course' && settings.algorithm !== 'round-robin') {
     throw new Error(
-      `Unsupported scheduling algorithm: ${problem.settings.algorithm}. Only course FCFS is implemented.`,
+      `Unsupported scheduling algorithm: ${settings.algorithm}. Only course FCFS and round robin are implemented.`,
     )
   }
 
@@ -268,11 +323,11 @@ export function simulate(input: Problem): SimulationResult {
           addNewlyReady(engine, time, returnedFromIo, events)
           break
         case 'preemption':
-          // Course FCFS never interrupts a running burst.
+          if (settings.algorithm === 'round-robin') expireQuantum(engine, time, events)
           break
         case 'dispatch':
           dispatchIo(engine, time, events)
-          dispatchCourseFcfs(engine, events)
+          dispatchCpu(engine, settings, events)
           recordIdleResources(engine, events)
           break
         case 'execute': {

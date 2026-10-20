@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The app foundation, scheduling data model, and course FCFS simulator are implemented with input validation and automated tests. The remaining algorithms and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** The app foundation, scheduling data model, and shared simulator for course FCFS and round robin are implemented with input validation and automated tests. SJF, SRTF, priority scheduling, and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -216,13 +216,15 @@ The React-independent modules in `src/scheduling/` define the scheduling contrac
 
 ### Simulator
 
-`simulate(problem)` in `src/scheduling/simulator.ts` currently supports **FCFS — course launch order**. It validates the problem, preserves its inputs, and returns the same result on repeated calls. Invalid input throws a `TypeError`; algorithms not implemented yet throw an explicit unsupported-algorithm error.
+`simulate(problem)` in `src/scheduling/simulator.ts` currently supports **FCFS — course launch order** and **round robin**. It validates the problem, preserves its inputs, and returns the same result on repeated calls. Invalid input throws a `TypeError`; algorithms not implemented yet throw an explicit unsupported-algorithm error.
 
-The result contains two 40-cell reference timelines and 41 independent boundary snapshots, including process states, queue order, and decision events. Work completing at a boundary is processed before new dispatches, so CPU and I/O transitions have no extra delay. A running CPU burst and an active I/O request both run to completion. CPU selection uses original launch order; the shared I/O device serves requests in FIFO order.
+The result contains two 40-cell reference timelines and 41 independent boundary snapshots, including process states, queue order, and decision events. Work completing at a boundary is processed before new dispatches, so CPU and I/O transitions have no extra delay. Course FCFS selects by original launch order and runs each CPU burst to completion. The shared I/O device serves requests in FIFO order and always runs them to completion.
+
+Round robin takes the head of the ready queue and gives it a fresh quantum on every dispatch. CPU execution decreases both its remaining burst and quantum. An unfinished process whose quantum expires joins the queue after existing waiters and this boundary's arrivals/I/O returns, retaining its remaining work and receiving a new ready-entry timestamp. A process can immediately receive another full quantum if nobody else is ready. Blocking or completion discards unused quantum; a CPU burst ending exactly at expiration blocks or completes without being requeued. A new arrival or I/O return alone does not interrupt a running turn.
 
 A completed workload returns `status: "complete"` with its actual `completionTime`; trailing timeline cells are Idle. Completion exactly at 40 is valid. Unfinished work returns `status: "limit-reached"` with `completionTime: null` and its remaining work recorded at boundary 40. The engine never executes an extra interval or changes burst lengths to make a workload fit. The generator will reject these unfinished workloads.
 
-Hand-calculated tests cover overlap, I/O contention, blocked CPU idleness, launch-order selection after I/O, simultaneous events, and the worksheet limit. Additional invariant tests verify resource exclusivity, conserved work, queue order, and reproducible, independent history snapshots across varied workloads.
+Hand-calculated tests cover overlap, I/O contention, blocked CPU idleness, launch-order selection after I/O, round-robin rotation, fresh quanta, simultaneous arrivals/I/O returns/expiration, and the worksheet limit. Additional invariant tests verify resource exclusivity, conserved work, FIFO queues, time-slice accounting, and reproducible, independent history snapshots across varied workloads. Boundary 40 still performs completion and queue bookkeeping, including unfinished quantum expiration, without dispatching or executing more work.
 
 ## Local development
 
