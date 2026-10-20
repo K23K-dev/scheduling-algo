@@ -2,11 +2,14 @@ import { useReducer, useState, type FormEvent } from 'react'
 import { createProblemSeed, generateProblem } from './scheduling/generator'
 import { getSchedulingRule } from './scheduling/rules'
 import { gradeAttempt, type GradeResult } from './scheduling/grader'
-import type { Problem, SchedulingSettings } from './scheduling/types'
+import { getHint, type HintLevel, type HintResult } from './scheduling/hints'
+import { simulate } from './scheduling/simulator'
+import type { Problem, SchedulingSettings, SimulationResult } from './scheduling/types'
 import { updateProblemSettings } from './practice/settings'
 import { ProcessTable, RulesPanel } from './practice/Workspace'
 import { Worksheet } from './practice/Worksheet'
 import { ReplaceProblemDialog } from './practice/ReplaceProblemDialog'
+import { SolutionPlayback } from './practice/SolutionPlayback'
 import { attemptReducer, createAttemptHistory, type AttemptAction } from './practice/attempt'
 import styles from './App.module.css'
 
@@ -27,6 +30,10 @@ export default function App() {
   const [replacement, setReplacement] = useState<Problem | null>(null)
   const [feedback, setFeedback] = useState<GradeResult | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [hint, setHint] = useState<HintResult | null>(null)
+  const [helpError, setHelpError] = useState<string | null>(null)
+  const [solution, setSolution] = useState<SimulationResult | null>(null)
+  const [assisted, setAssisted] = useState(false)
   const activeRule = getSchedulingRule(problem.settings)
   const pendingSettings = algorithm !== problem.settings.algorithm ||
     (problem.settings.algorithm === 'round-robin' && Number(quantum) !== problem.settings.quantum) ||
@@ -35,6 +42,15 @@ export default function App() {
   function clearFeedback() {
     setFeedback(null)
     setCheckError(null)
+    setHint(null)
+    setHelpError(null)
+  }
+
+  function resetAttempt() {
+    editAttempt({ type: 'reset' })
+    clearFeedback()
+    setSolution(null)
+    setAssisted(false)
   }
 
   function handleEdit(action: AttemptAction) {
@@ -48,6 +64,29 @@ export default function App() {
       setFeedback(gradeAttempt(problem, history.present))
     } catch {
       setCheckError('Your answer could not be checked. Please try again.')
+    }
+  }
+
+  function handleHint(level: HintLevel) {
+    clearFeedback()
+    try {
+      const next = getHint(problem, history.present, level)
+      setHint(next)
+      if (next.status === 'hint' && next.level === 3) setAssisted(true)
+    } catch {
+      setHelpError('Your hint could not be prepared. Please try again.')
+    }
+  }
+
+  function handleReveal() {
+    clearFeedback()
+    try {
+      const next = simulate(problem)
+      if (next.status !== 'complete') throw new Error('The solution must fit the worksheet.')
+      setSolution(next)
+      setAssisted(true)
+    } catch {
+      setHelpError('The solution could not be prepared. Please try again.')
     }
   }
 
@@ -74,8 +113,7 @@ export default function App() {
       if (action === 'new') {
         const next = generateProblem(createProblemSeed(problem.seed), settings)
         setProblem(next)
-        editAttempt({ type: 'reset' })
-        clearFeedback()
+        resetAttempt()
         setNotice('New problem ready. Read the process table to get started.')
       } else if (pendingSettings) {
         const updated = updateProblemSettings(problem, settings, createProblemSeed(problem.seed))
@@ -88,7 +126,8 @@ export default function App() {
         }
         setProblem(updated.problem)
         clearFeedback()
-        if (updated.replaced) editAttempt({ type: 'reset' })
+        setSolution(null)
+        if (updated.replaced) resetAttempt()
         setNotice(updated.replaced
           ? 'The previous workload would exceed 40 blocks with these settings. A new problem is ready.'
           : 'Settings applied. The same processes and burst lengths are ready to use.')
@@ -236,7 +275,24 @@ export default function App() {
         feedback={feedback}
         checkError={checkError}
         pendingSettings={pendingSettings}
+        hint={hint}
+        onHint={handleHint}
+        onReveal={handleReveal}
+        solutionVisible={solution !== null}
+        assisted={assisted}
+        helpError={helpError}
+        onRetry={() => {
+          resetAttempt()
+          setNotice('Same problem ready for a fresh attempt.')
+        }}
       />
+      {solution ? (
+        <SolutionPlayback
+          problem={problem}
+          solution={solution}
+          onClose={() => setSolution(null)}
+        />
+      ) : null}
       {replacement ? (
         <ReplaceProblemDialog
           onCancel={() => {
@@ -245,8 +301,7 @@ export default function App() {
           }}
           onConfirm={() => {
             setProblem(replacement)
-            editAttempt({ type: 'reset' })
-            clearFeedback()
+            resetAttempt()
             setReplacement(null)
             setNotice('The previous workload would exceed 40 blocks with these settings. A new problem is ready.')
           }}

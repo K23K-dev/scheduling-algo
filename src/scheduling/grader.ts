@@ -10,6 +10,7 @@ import {
   type ProcessState,
   type ReferenceCell,
   type Resource,
+  type SimulationResult,
 } from './types'
 import { parseAttempt } from './validation'
 
@@ -299,6 +300,25 @@ function describeIo(boundary: IntervalBoundary): string {
   return `The I/O device is still busy with ${state.processId}, which started at time ${state.startedAt} and has ${units(state.remainingIo, 'I/O')} remaining. I/O is nonpreemptive, so this request must finish before another starts.`
 }
 
+/** Reuse the recorded decision explanations without a learner's assignment. */
+export function explainInterval(
+  problem: Problem,
+  solution: SimulationResult,
+  time: number,
+): { readonly cpu: string; readonly io: string } {
+  if (!Number.isInteger(time) || time < 0 || time >= TIMELINE_LENGTH) {
+    throw new RangeError('An explained interval must start at an integer from 0 to 39.')
+  }
+  const boundary = solution.boundaries[time]
+  if (boundary?.kind !== 'interval-start' || boundary.time !== time) {
+    throw new Error('Explaining an interval requires its interval-start boundary.')
+  }
+  return {
+    cpu: describeCpu(problem, boundary, solution.boundaries[time - 1]),
+    io: describeIo(boundary),
+  }
+}
+
 /** Check both resources at each time and reveal only the earliest divergence. */
 export function gradeAttempt(problem: Problem, attempt: Attempt): GradeResult {
   // The shared simulator validates the problem and records each policy decision.
@@ -323,10 +343,7 @@ export function gradeAttempt(problem: Problem, attempt: Attempt): GradeResult {
       const actual = parsed.value[resource][time]
       const expected = solution.timeline[resource][time]
       if (actual === expected) continue
-      const reason =
-        resource === 'cpu'
-          ? describeCpu(problem, boundary, solution.boundaries[time - 1])
-          : describeIo(boundary)
+      const reason = explainInterval(problem, solution, time)[resource]
       issues.push({
         resource,
         actual,

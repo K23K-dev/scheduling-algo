@@ -36,7 +36,9 @@ function Harness() {
   return (
     <>
       <Worksheet processes={processes} history={history} onEdit={dispatch}
-        onCheck={() => undefined} feedback={null} checkError={null} />
+        onCheck={() => undefined} feedback={null} checkError={null}
+        hint={null} helpError={null} assisted={false} solutionVisible={false}
+        onHint={() => undefined} onReveal={() => undefined} onRetry={() => undefined} />
       <output aria-label="Saved attempt">{JSON.stringify(history.present)}</output>
       <button type="button">Outside worksheet</button>
     </>

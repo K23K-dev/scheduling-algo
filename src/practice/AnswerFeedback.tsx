@@ -28,8 +28,8 @@ export function AnswerFeedback({ result, error, onEditCell }: AnswerFeedbackProp
             <h3 id="feedback-title">Review time {result.time}–{result.time + 1}</h3>
             <p className={styles.introduction}>
               {result.time === 0
-                ? 'Start here. Later intervals have not been revealed.'
-                : `Both rows are correct before time ${result.time}. Later intervals have not been revealed.`}
+                ? 'Start with this interval, then check again.'
+                : `Both rows are correct before time ${result.time}. Focus on this interval, then check again.`}
             </p>
             <div className={styles.issues}>
               {result.issues.map((issue) => {

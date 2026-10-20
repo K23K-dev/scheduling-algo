@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { TIME_BOUNDARIES } from '../scheduling/timeline'
 import type { GradeResult } from '../scheduling/grader'
+import type { HintLevel, HintResult } from '../scheduling/hints'
 import {
   TIMELINE_LENGTH,
   type AttemptCell,
@@ -17,6 +18,7 @@ import {
 } from '../scheduling/types'
 import type { AttemptAction, AttemptHistory } from './attempt'
 import { AnswerFeedback } from './AnswerFeedback'
+import { HintPanel } from './HintPanel'
 import styles from '../App.module.css'
 import editor from './Worksheet.module.css'
 
@@ -41,6 +43,13 @@ interface WorksheetProps {
   readonly feedback: GradeResult | null
   readonly checkError: string | null
   readonly pendingSettings?: boolean
+  readonly hint: HintResult | null
+  readonly helpError: string | null
+  readonly assisted: boolean
+  readonly solutionVisible: boolean
+  readonly onHint: (level: HintLevel) => void
+  readonly onReveal: () => void
+  readonly onRetry: () => void
 }
 
 const intervals = TIME_BOUNDARIES.slice(0, TIMELINE_LENGTH)
@@ -52,6 +61,7 @@ function cellLabel(value: AttemptCell): string {
 
 export function Worksheet({
   processes, history, onEdit, onCheck, feedback, checkError, pendingSettings = false,
+  hint, helpError, assisted, solutionVisible, onHint, onReveal, onRetry,
 }: WorksheetProps) {
   const [tool, setTool] = useState<AttemptCell>(processes[0].id)
   const [focused, setFocused] = useState<CellPosition>({ resource: 'cpu', index: 0 })
@@ -195,7 +205,10 @@ export function Worksheet({
     >
       <div className={styles.panelHeading}>
         <h2 id="worksheet-title"><span className={styles.step}>03</span> Your timeline</h2>
-        <span className={styles.previewTag} aria-live="polite">{answered} / 80 filled</span>
+        <div className={editor.attemptStatus}>
+          {assisted ? <span className={editor.assisted} aria-live="polite">Assisted attempt</span> : null}
+          <span className={styles.previewTag} aria-live="polite">{answered} / 80 filled</span>
+        </div>
       </div>
       <p className={styles.worksheetDescription} id="editing-help">
         Choose a process, Idle, or Erase. Click a block or drag across one row to assign a range.
@@ -319,16 +332,24 @@ export function Worksheet({
           Check answer
         </button>
       </div>
+      <div className={editor.learningActions}>
+        <button type="button" onClick={() => { cancelDrag(); onHint(1) }}>Hint</button>
+        <button type="button" disabled={solutionVisible} onClick={() => { cancelDrag(); onReveal() }}>
+          Reveal solution
+        </button>
+        <button type="button" onClick={() => { cancelDrag(); onRetry() }}>Retry same problem</button>
+      </div>
       <p className={editor.checkHelp}>
         {pendingSettings
-          ? 'Checking uses the current problem’s applied settings. Your setting changes are still pending.'
-          : 'Check when you’re ready. Only the earliest interval needing attention will be shown.'}
+          ? 'Checking, hints, and playback use the current problem’s applied settings. Your setting changes are still pending.'
+          : 'Hints start with a rule. Revealing an assignment or solution marks this attempt as assisted.'}
       </p>
       <AnswerFeedback
         result={visibleFeedback}
         error={checkError}
         onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
       />
+      <HintPanel hint={drag === null ? hint : null} error={helpError} onHint={onHint} />
       <div className={styles.worksheetFooter} id="keyboard-help">
         <p>Arrow keys move · Enter/Space assign · Delete erases · Ctrl/Cmd+Z undoes</p>
         <p>On touch screens, tap to assign and swipe to scroll.</p>

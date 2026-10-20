@@ -17,7 +17,8 @@
 
 .tool,
 .historyActions button,
-.bottomActions button {
+.bottomActions button,
+.learningActions button {
   min-height: 2.5rem;
   padding: 0.5rem 0.75rem;
   border: 1px solid #465863;
@@ -50,12 +51,14 @@
 
 .historyActions button:hover:enabled,
 .bottomActions button:hover:enabled,
+.learningActions button:hover:enabled,
 .tool:hover {
   border-color: #b4d4c5;
 }
 
 .historyActions button:disabled,
-.bottomActions button:disabled {
+.bottomActions button:disabled,
+.learningActions button:disabled {
   opacity: 0.45;
   cursor: default;
 }
@@ -167,6 +170,17 @@
   font-size: 0.73rem;
 }
 
+.attemptStatus { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.assisted {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #7b6848;
+  border-radius: 4px;
+  color: #e7c58d;
+  font-size: 0.63rem;
+}
+.learningActions { display: flex; flex-wrap: wrap; gap: 0.65rem; padding: 0 1.4rem 1rem; }
+.learningActions button:last-child { margin-left: auto; }
+
 @media (max-width: 600px) {
   .toolbar,
   .legend,
@@ -174,11 +188,15 @@
     margin-inline: 1rem;
   }
 
-  .bottomActions {
+  .bottomActions,
+  .learningActions {
     padding-inline: 1rem;
   }
 
   .bottomActions button {
     width: 100%;
   }
+
+  .learningActions button { flex: 1 1 auto; }
+  .learningActions button:last-child { margin-left: 0; }
 }

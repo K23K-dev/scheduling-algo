@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** All five algorithms support generated problems, scheduling rules, editable 40-block CPU/I/O timelines with undo/redo, and answer checking with explanations of the earliest mistake. Priority supports both preemptive and non-preemptive modes. Hints, solution playback, and persistence are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** All five algorithms support generated problems, scheduling rules, editable 40-block CPU/I/O timelines with undo/redo, answer checking, progressive hints, and solution playback. Priority supports both preemptive and non-preemptive modes. Retry keeps the same problem; persistence is not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -111,7 +111,7 @@ The main screen should contain:
 - Process table and a compact scheduling-rules panel.
 - A process palette with labels and distinct colors, plus **Idle** and **Erase**.
 - Aligned CPU and I/O rows with 40 cells each.
-- **Undo**, **Redo**, **Clear attempt**, **Check answer**, **Hint**, and **Reveal solution**.
+- **Undo**, **Redo**, **Clear attempt**, **Check answer**, **Hint**, **Reveal solution**, and **Retry same problem**.
 - A feedback area below the timeline.
 
 Interaction requirements:
@@ -254,9 +254,27 @@ Keyboard users can Tab into the worksheet, move between cells with arrow keys, j
 
 **Check answer** compares the current attempt against the applied settings, even while other settings are still a draft. It reports only the earliest wrong or unanswered interval, grouping CPU and I/O feedback when both need attention there. Each explanation names the expected assignment and explains the decision using the simulator's recorded events, process states, remaining work, and dispatch candidates. Unanswered cells remain different from intentional Idle cells, including the unused tail. A complete matching attempt receives a success message.
 
-The reported cells have an outline and a review marker, with accessible links to their explanations. **Edit CPU/I/O at time …** scrolls to and focuses that cell without changing its assignment. Checking never fills answers or changes undo history. Editing, undoing, redoing, clearing, or filling hides the previous result until another explicit check. Applying changed settings or starting a new problem also clears feedback; draft settings, invalid submissions, and canceled replacements preserve it. Hints and full solution playback follow in a later step.
+The reported cells have an outline and a review marker, with accessible links to their explanations. **Edit CPU/I/O at time …** scrolls to and focuses that cell without changing its assignment. Checking never fills answers or changes undo history. Editing, undoing, redoing, clearing, or filling hides the previous result until another explicit check. Applying changed settings or starting a new problem also clears feedback; draft settings, invalid submissions, and canceled replacements preserve it.
 
 The pure grader is in `src/scheduling/grader.ts`. It validates attempts, uses the shared reference simulator, and returns only success or the issues at the first differing interval. It rejects invalid inputs and workloads that exceed 40 intervals. Tests cover chronological comparison across both rows, blank versus Idle, original launch order, round-robin queue ordering and expiration, shortest-burst and priority comparisons, selection ties, preemption and equal-value continuation, simultaneous completion, I/O contention, and the full check–correct–recheck interface flow for every policy.
+
+### Hints and solution playback
+
+**Hint** starts at the earliest wrong or unanswered interval, covering both resources when necessary. It reveals help in three stages:
+
+1. The applicable scheduling rule.
+2. **More detail** shows the relevant boundary events, candidates and remaining work, or I/O request order, without explicitly choosing an assignment.
+3. **Show this assignment** names the answer and explains why it runs.
+
+The first two stages leave the attempt unassisted. Revealing an assignment or the full solution marks it **Assisted attempt**. Editing clears the current hint so the next request considers the revised answers. Hints never fill cells or change undo history; a correct attempt receives a success message instead. The pure `getHint` helper in `src/scheduling/hints.ts` uses the grader's earliest mismatch and the simulator's recorded decisions, sharing explanations with checking and playback.
+
+**Reveal solution** opens a separate, read-only reference timeline beneath the editable worksheet. Playback starts paused. Use **Previous step**, **Next step**, the **Playback time** slider, **Back to start**, or **Go to end** to inspect any boundary. **Play** advances once per second; navigation, hiding the solution, leaving the window, or hiding the tab pauses it. It stops at time 40.
+
+Each interval shows CPU and I/O assignments with explanations, queues after dispatch, and process states with remaining CPU/I/O work. Round robin includes remaining quantum; priority includes process priorities. The timeline scrolls horizontally to follow the selected boundary. At time 40, playback shows final bookkeeping and events without inventing a 41st interval.
+
+The learner's answers and undo/redo remain available while the solution is open. **Hide solution** closes playback but retains the assisted label. Clearing answers also retains that label because it is undoable. Applying different settings closes playback and clears hints; if the workload stays the same, answers, history, and assisted status remain. Draft settings, invalid submissions, and canceled replacements preserve the current help.
+
+**Retry same problem** keeps the seed, processes, and applied settings while clearing answers, history, hints, playback, and the assisted label. **New problem** or an accepted replacement also resets this practice state. Tests cover progressive disclosure, all policies, terminal boundary 40, playback timers and cleanup, assistance tracking, retry, settings changes, and failure recovery.
 
 ## Local development
 

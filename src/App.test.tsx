@@ -140,7 +140,8 @@ describe('practice workspace', () => {
       }
     }
     expect(screen.queryByText(/completion time/i)).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /reveal|show solution/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reveal solution' })).toBeEnabled()
+    expect(screen.queryByRole('table', { name: 'Reference solution' })).not.toBeInTheDocument()
   })
 
   test('keeps the current worksheet and active rules while settings are only a draft', () => {
