@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** The app foundation and scheduling data model are in place, with input validation, event-ordering and tie-breaking helpers, and automated tests. The simulator and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
+**Status:** The app foundation, scheduling data model, and course FCFS simulator are implemented with input validation and automated tests. The remaining algorithms and interactive practice features are not implemented yet. Course-specific behavior and app defaults are identified below.
 
 ## Goals
 
@@ -42,7 +42,7 @@ Example input:
 | P2 | 0 | 15 | 2 | 6 | 2 |
 | P3 | 0 | 6 | 6 | 2 | 1 |
 
-This workload comes from the Unit 3 text and can serve as a fixed practice fixture. Show the priority column only for priority scheduling.
+This workload comes from the Unit 3 text. Under the course FCFS rules below, it finishes at time **41**, so it is a reference input and an overflow test, not a valid 40-cell FCFS practice problem. Keep its burst lengths unchanged. Show the priority column only for priority scheduling.
 
 Initial defaults:
 
@@ -206,13 +206,23 @@ Keep editable answers separate from the reference solution. Record enough state 
 
 ### Scheduling model
 
-The React-independent modules in `src/scheduling/` define the contracts for the upcoming simulator:
+The React-independent modules in `src/scheduling/` define the scheduling contracts:
 
 - `Problem` holds process inputs, algorithm settings, an unsigned 32-bit seed, and rules/generator versions. `parseProblem` accepts unknown data and returns either a detached, validated problem or errors with field paths. It requires positive integer bursts and quantum, nonnegative integer arrivals, and unique IDs such as P1 and P2. Numeric fields must be safe integers. Priority can be any safe integer, with smaller values ranking higher; it is required only for priority scheduling.
 - Structural validation deliberately allows small fixtures, staggered arrivals, and values outside the generator's proposed ranges. It does **not** establish that a workload finishes by time 40; the simulator will check that separately. Unsupported versions and irrelevant settings, such as a quantum on SJF, are rejected.
 - An `Attempt` contains only editable CPU/I/O rows: `null` means unanswered, `"idle"` means intentionally Idle, and a process ID means an assignment. `parseAttempt` checks two 40-cell rows and valid process references, without grading the learner's choices. Reference timelines cannot contain unanswered cells.
 - Process states distinguish not arrived, ready, running, waiting for I/O, performing I/O, and completed. Boundary snapshots retain process work, ordered queues, resource assignments, and decision events. Snapshots at times 0–39 describe the state after dispatch and before execution; a terminal snapshot at 40 records final bookkeeping without another interval.
-- Rule helpers describe boundary phases, numeric process ordering, launch-order and ready-entry tie-breaks, strict preemption, and completion-before-quantum-expiration behavior. Ready-entry timestamps and actual FIFO queue positions remain separate. The simulator's future result distinguishes completion within the worksheet from reaching its limit with unfinished work.
+- Rule helpers describe boundary phases, numeric process ordering, launch-order and ready-entry tie-breaks, strict preemption, and completion-before-quantum-expiration behavior. Ready-entry timestamps and actual FIFO queue positions remain separate.
+
+### Simulator
+
+`simulate(problem)` in `src/scheduling/simulator.ts` currently supports **FCFS — course launch order**. It validates the problem, preserves its inputs, and returns the same result on repeated calls. Invalid input throws a `TypeError`; algorithms not implemented yet throw an explicit unsupported-algorithm error.
+
+The result contains two 40-cell reference timelines and 41 independent boundary snapshots, including process states, queue order, and decision events. Work completing at a boundary is processed before new dispatches, so CPU and I/O transitions have no extra delay. A running CPU burst and an active I/O request both run to completion. CPU selection uses original launch order; the shared I/O device serves requests in FIFO order.
+
+A completed workload returns `status: "complete"` with its actual `completionTime`; trailing timeline cells are Idle. Completion exactly at 40 is valid. Unfinished work returns `status: "limit-reached"` with `completionTime: null` and its remaining work recorded at boundary 40. The engine never executes an extra interval or changes burst lengths to make a workload fit. The generator will reject these unfinished workloads.
+
+Hand-calculated tests cover overlap, I/O contention, blocked CPU idleness, launch-order selection after I/O, simultaneous events, and the worksheet limit. Additional invariant tests verify resource exclusivity, conserved work, queue order, and reproducible, independent history snapshots across varied workloads.
 
 ## Local development
 

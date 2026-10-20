@@ -164,7 +164,7 @@ export type BoundarySnapshot =
       readonly time: typeof TIMELINE_LENGTH
     })
 
-/** Future simulator output: 40 cells per row and boundaries 0 through 40. */
+/** Simulator output: 40 cells per row and boundaries 0 through 40. */
 export type SimulationResult = {
   readonly timeline: ReferenceTimeline
   readonly boundaries: readonly BoundarySnapshot[]
