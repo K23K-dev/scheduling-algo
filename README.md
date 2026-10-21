@@ -302,7 +302,23 @@ Open the local URL printed by Vite. Generate a workload, choose an assignment to
 
 Run `npm run build` before `npm run preview`. Component tests use React Testing Library and jsdom.
 
-GitHub Actions runs installation, linting, type checking, tests, and a production build for pull requests and pushes to `main`. Deployment will be added later.
+GitHub Actions runs installation, linting, type checking, tests, and a production build for pull requests and pushes to `main`. Successful builds on `main` deploy to GitHub Pages. Pull requests run the checks without publishing.
+
+## GitHub Pages deployment
+
+The site is configured for [k23k-dev.github.io/scheduling-algo](https://k23k-dev.github.io/scheduling-algo/). Vite's base path is `/scheduling-algo/`, so built assets load from the repository's Pages path. Local development and preview use that same path.
+
+One-time setup:
+
+1. Open the repository's **Settings → Pages → Build and deployment**.
+2. Set **Source** to **GitHub Actions**.
+3. Commit and push the deployment configuration to `main`.
+
+The **Checks and Pages** workflow installs dependencies, runs all checks, builds `dist`, and uploads it as a Pages artifact. Its deployment job uses the `github-pages` environment and the built-in GitHub token; no personal token or deployment secret is required. Deployments are serialized so an active publish is not canceled by a newer one. Later pushes to `main` publish automatically after their checks pass.
+
+To redeploy the current `main` without another commit, open **Actions → Checks and Pages → Run workflow** and select `main`. Check the deployment job and open its environment URL to verify the published site.
+
+For a local production preview, run `npm run build`, then `npm run preview`, and open the printed `/scheduling-algo/` URL. If the repository is renamed or a custom domain is introduced, update Vite's base path before publishing again. See the [Vite Pages guide](https://vite.dev/guide/static-deploy.html#github-pages) and [GitHub's custom workflow guide](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 ## Build phases
 
