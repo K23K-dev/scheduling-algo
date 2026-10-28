@@ -1,5 +1,4 @@
-import { getSchedulingRule, SHARED_SCHEDULING_RULES } from '../scheduling/rules'
-import type { ProcessInput, SchedulingSettings } from '../scheduling/types'
+import type { ProcessInput } from '../scheduling/types'
 import styles from '../App.module.css'
 
 export function ProcessTable({
@@ -10,11 +9,7 @@ export function ProcessTable({
   readonly showPriority?: boolean
 }) {
   return (
-    <section className={styles.panel} aria-labelledby="processes-title">
-      <div className={styles.panelHeading}>
-        <h2 id="processes-title"><span className={styles.step}>02</span> Processes</h2>
-        <span className={styles.smallTag}>CPU → I/O → CPU</span>
-      </div>
+    <section className={styles.panel} aria-label="Processes">
       <div className={styles.processTableScroll} role="region" aria-label="Scrollable process inputs" tabIndex={0}>
         <table className={styles.processTable} aria-label="Processes">
           <thead>
@@ -41,32 +36,6 @@ export function ProcessTable({
           </tbody>
         </table>
       </div>
-      <p className={styles.panelFootnote}>
-        All processes arrive at time 0. Burst lengths are in time units.
-        {showPriority ? ' Smaller priority numbers mean higher priority.' : null}
-      </p>
-    </section>
-  )
-}
-
-export function RulesPanel({ settings }: { readonly settings: SchedulingSettings }) {
-  const rule = getSchedulingRule(settings)
-  return (
-    <section className={`${styles.panel} ${styles.rulesPanel}`} aria-labelledby="rules-title">
-      <div className={styles.panelHeading}>
-        <h2 id="rules-title">Scheduling rules</h2>
-        <span className={styles.smallTag}>1 CPU + 1 I/O</span>
-      </div>
-      <h3 className={styles.ruleTitle}>{rule.label}</h3>
-      <dl className={styles.ruleList}>
-        <div><dt>Select</dt><dd>{rule.selection}</dd></div>
-        <div><dt>Switch</dt><dd>{rule.preemption}</dd></div>
-        <div><dt>Order</dt><dd>{rule.tieBreak}</dd></div>
-      </dl>
-      <details className={styles.sharedRules}>
-        <summary>I/O &amp; simultaneous events</summary>
-        <ul>{SHARED_SCHEDULING_RULES.map((rule) => <li key={rule}>{rule}</li>)}</ul>
-      </details>
     </section>
   )
 }

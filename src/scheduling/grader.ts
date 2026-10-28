@@ -168,7 +168,7 @@ function describeContinuation(
 ): string {
   switch (problem.settings.algorithm) {
     case 'fcfs-course':
-      return 'Course FCFS does not preempt an unfinished CPU burst.'
+      return 'FCFS does not preempt an unfinished CPU burst.'
     case 'round-robin':
       return `Its current quantum still has ${state.quantumRemaining} ${state.quantumRemaining === 1 ? 'unit' : 'units'} left, so it keeps the CPU.`
     case 'sjf':
@@ -231,7 +231,7 @@ function describeCpu(
         return `${candidate.processId} (arrival ${input.arrival})`
       })
       context.push(
-        `Ready candidates: ${arrivals.join(', ')}. Course FCFS selects ${state.processId} by original launch order: earliest arrival, then lowest numeric process ID. This order is retained after I/O.`,
+        `Ready candidates: ${arrivals.join(', ')}. FCFS selects ${state.processId} by original launch order: earliest arrival, then lowest numeric process ID. This order is retained after I/O.`,
         `${state.processId} starts CPU burst ${state.burst} with ${units(state.remainingCpu, 'CPU')} remaining.`,
       )
     } else if (dispatched.criterion === 'fifo-ready-queue') {

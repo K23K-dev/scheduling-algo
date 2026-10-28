@@ -123,7 +123,7 @@ export function getSchedulingRule(settings: SchedulingSettings): SchedulingRule 
   switch (settings.algorithm) {
     case 'fcfs-course':
       return {
-        label: 'FCFS — course launch order',
+        label: 'FCFS',
         selection: 'Choose the ready process with the earliest original arrival.',
         preemption: NO_PREEMPTION,
         tieBreak: 'Lower process number for equal arrivals; I/O returns retain launch order.',

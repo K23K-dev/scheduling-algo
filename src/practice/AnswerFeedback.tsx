@@ -26,11 +26,6 @@ export function AnswerFeedback({ result, error, onEditCell }: AnswerFeedbackProp
           <section className={styles.feedback} aria-labelledby="feedback-title">
             <p className={styles.eyebrow}>FIRST INTERVAL TO REVIEW</p>
             <h3 id="feedback-title">Review time {result.time}–{result.time + 1}</h3>
-            <p className={styles.introduction}>
-              {result.time === 0
-                ? 'Start with this interval, then check again.'
-                : `Both rows are correct before time ${result.time}. Focus on this interval, then check again.`}
-            </p>
             <div className={styles.issues}>
               {result.issues.map((issue) => {
                 const label = issue.resource === 'cpu' ? 'CPU' : 'I/O'
@@ -49,7 +44,6 @@ export function AnswerFeedback({ result, error, onEditCell }: AnswerFeedbackProp
                 )
               })}
             </div>
-            <p className={styles.nextStep}>Revise your timeline, then check again. Your answers stay editable.</p>
           </section>
         ) : null}
       </div>

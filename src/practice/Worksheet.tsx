@@ -10,7 +10,6 @@ import {
 } from 'react'
 import { TIME_BOUNDARIES } from '../scheduling/timeline'
 import type { GradeResult } from '../scheduling/grader'
-import type { HintLevel, HintResult } from '../scheduling/hints'
 import {
   TIMELINE_LENGTH,
   type AttemptCell,
@@ -19,7 +18,6 @@ import {
 } from '../scheduling/types'
 import type { AttemptAction, AttemptHistory } from './attempt'
 import { AnswerFeedback } from './AnswerFeedback'
-import { HintPanel } from './HintPanel'
 import styles from '../App.module.css'
 import editor from './Worksheet.module.css'
 
@@ -43,12 +41,9 @@ interface WorksheetProps {
   readonly onCheck: () => void
   readonly feedback: GradeResult | null
   readonly checkError: string | null
-  readonly pendingSettings?: boolean
-  readonly hint: HintResult | null
   readonly helpError: string | null
   readonly assisted: boolean
   readonly solutionVisible: boolean
-  readonly onHint: (level: HintLevel) => void
   readonly onReveal: () => void
   readonly onRetry: () => void
   readonly revealButtonRef?: Ref<HTMLButtonElement>
@@ -62,8 +57,8 @@ function cellLabel(value: AttemptCell): string {
 }
 
 export function Worksheet({
-  processes, history, onEdit, onCheck, feedback, checkError, pendingSettings = false,
-  hint, helpError, assisted, solutionVisible, onHint, onReveal, onRetry, revealButtonRef,
+  processes, history, onEdit, onCheck, feedback, checkError,
+  helpError, assisted, solutionVisible, onReveal, onRetry, revealButtonRef,
 }: WorksheetProps) {
   const [tool, setTool] = useState<AttemptCell>(processes[0].id)
   const [focused, setFocused] = useState<CellPosition>({ resource: 'cpu', index: 0 })
@@ -236,19 +231,11 @@ export function Worksheet({
   return (
     <section
       className={`${styles.panel} ${styles.worksheet}`}
-      aria-labelledby="worksheet-title"
+      id="worksheet-title"
+      aria-label="Your timeline"
+      tabIndex={-1}
       onKeyDown={handleKeys}
     >
-      <div className={styles.panelHeading}>
-        <h2 id="worksheet-title" tabIndex={-1}><span className={styles.step}>03</span> Your timeline</h2>
-        <div className={editor.attemptStatus}>
-          {assisted ? <span className={editor.assisted} aria-live="polite">Assisted attempt</span> : null}
-          <span className={styles.previewTag} aria-live="polite">{answered} / 80 filled</span>
-        </div>
-      </div>
-      <p className={styles.worksheetDescription} id="editing-help">
-        Choose a process, Idle, or Erase. Click a block or drag across one row to assign a range.
-      </p>
       <div className={editor.toolbar}>
         <div className={editor.palette} role="group" aria-label="Assignment tool" aria-describedby="keyboard-help">
           {processes.map(({ id }, index) => (
@@ -281,17 +268,11 @@ export function Worksheet({
           >Erase</button>
         </div>
         <div className={editor.historyActions}>
+          {assisted ? <span className={editor.assisted} aria-live="polite">Assisted attempt</span> : null}
           <button type="button" disabled={history.past.length === 0} title="Undo (Ctrl/Cmd+Z)" onClick={() => onEdit({ type: 'undo' })}>Undo</button>
           <button type="button" disabled={history.future.length === 0} title="Redo (Ctrl/Cmd+Shift+Z)" onClick={() => onEdit({ type: 'redo' })}>Redo</button>
           <button type="button" disabled={answered === 0} onClick={() => onEdit({ type: 'clear' })}>Clear attempt</button>
         </div>
-      </div>
-      <p className={editor.toolStatus} aria-live="polite" aria-atomic="true">
-        Selected tool: {tool === null ? 'Erase' : cellLabel(tool)}.
-      </p>
-      <div className={editor.legend}>
-        <span><i className={styles.emptySwatch} aria-hidden="true">·</i> Unanswered</span>
-        <span>First block: [0, 1)</span>
       </div>
       <div
         ref={regionRef}
@@ -308,7 +289,7 @@ export function Worksheet({
         onPointerCancel={(event) => { if (dragRef.current?.pointerId === event.pointerId) cancelDrag() }}
         onLostPointerCapture={(event) => { if (dragRef.current?.pointerId === event.pointerId) cancelDrag() }}
       >
-        <table className={styles.timeline} aria-label="CPU and I/O worksheet" aria-describedby="editing-help keyboard-help">
+        <table className={styles.timeline} aria-label="CPU and I/O worksheet" aria-describedby="keyboard-help">
           <colgroup><col className={styles.resourceColumn} /><col span={TIMELINE_LENGTH} /></colgroup>
           <thead>
             <tr>
@@ -380,35 +361,22 @@ export function Worksheet({
         <button type="button" disabled={answered === 80} onClick={() => onEdit({ type: 'fill-idle' })}>
           Fill remaining empty cells with Idle
         </button>
-        <button type="button" className={editor.checkButton} onClick={() => { cancelDrag(); onCheck() }}>
-          Check answer
-        </button>
+        <div className={editor.reviewActions}>
+          <button type="button" onClick={() => { cancelDrag(); onRetry() }}>Retry same problem</button>
+          <button ref={revealButtonRef} type="button" disabled={solutionVisible} onClick={() => { cancelDrag(); onReveal() }}>
+            Reveal solution
+          </button>
+          <button type="button" className={editor.checkButton} onClick={() => { cancelDrag(); onCheck() }}>
+            Check answer
+          </button>
+        </div>
       </div>
-      <div className={editor.learningActions}>
-        <button type="button" onClick={() => { cancelDrag(); onHint(1) }}>Hint</button>
-        <button ref={revealButtonRef} type="button" disabled={solutionVisible} onClick={() => { cancelDrag(); onReveal() }}>
-          Reveal solution
-        </button>
-        <button type="button" onClick={() => { cancelDrag(); onRetry() }}>Retry same problem</button>
-      </div>
-      {pendingSettings ? (
-        <p className={editor.checkHelp}>
-          Checking, hints, and playback use the current problem’s applied settings. Your setting changes are still pending.
-        </p>
-      ) : null}
       <AnswerFeedback
         result={visibleFeedback}
         error={checkError}
         onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
       />
-      <div hidden={drag !== null}>
-        <HintPanel
-          hint={hint}
-          error={helpError}
-          onHint={onHint}
-          onEditCell={(resource, time) => { cancelDrag(); focusCell({ resource, index: time }) }}
-        />
-      </div>
+      {helpError ? <p className={editor.helpError} role="alert">{helpError}</p> : null}
       <div className={editor.screenReaderHelp} id="keyboard-help">
         <p>1/2/3 choose a process · I selects Idle · E selects Erase</p>
         <p>Arrows move · Home/End jump along a row · Enter/Space assign · Delete/Backspace erase</p>

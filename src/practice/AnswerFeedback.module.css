@@ -32,12 +32,6 @@
   color: #c9ccca;
 }
 
-.feedback .introduction,
-.feedback .nextStep {
-  color: #b8bdb8;
-  font-size: 0.73rem;
-}
-
 .issues {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));

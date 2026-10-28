@@ -3,8 +3,8 @@
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin: 1.2rem 1.4rem 0.85rem;
+  gap: 0.75rem;
+  margin: 1.1rem 1.4rem 0.85rem;
 }
 
 .palette,
@@ -17,22 +17,24 @@
 
 .tool,
 .historyActions button,
-.bottomActions button,
-.learningActions button {
+.bottomActions button {
   min-width: var(--control-size);
-  min-height: var(--control-size);
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #465863;
-  border-radius: 4px;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid #3b4d58;
+  border-radius: 6px;
   background: #1c282f;
   color: #c3d0d7;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   cursor: pointer;
 }
 
+.palette .tool { min-width: 3rem; font-weight: 500; }
+.historyActions button { border-color: transparent; background: transparent; }
+
 .tool[aria-pressed="true"] {
-  outline: 2px solid #e0f7eb;
-  outline-offset: 2px;
+  border-color: #b0dfc9;
+  box-shadow: inset 0 0 0 1px #b0dfc9;
 }
 
 .tool[data-process="P1"] {
@@ -52,60 +54,35 @@
 
 .historyActions button:hover:enabled,
 .bottomActions button:hover:enabled,
-.learningActions button:hover:enabled,
 .tool:hover {
   border-color: #b4d4c5;
 }
 
 .historyActions button:disabled,
-.bottomActions button:disabled,
-.learningActions button:disabled {
+.bottomActions button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
-.legend {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.35rem 1rem;
-  margin: 0 1.4rem 0.4rem;
-  font-family: var(--mono);
-  font-size: 0.65rem;
-  color: var(--muted);
-}
-
-.legend i {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 1rem;
-  height: 1rem;
-  font-style: normal;
-}
-
-.toolStatus {
-  margin: 0 1.4rem 0.65rem;
-  color: #baccc6;
-  font-size: 0.75rem;
-  overflow-wrap: anywhere;
-}
-
 .cell {
+  position: relative;
   padding: 0;
 }
 
 .cellButton {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   min-width: var(--timeline-cell-width);
-  height: 3.1rem;
+  height: 100%;
   padding: 0;
   border: 0;
   background: transparent;
   color: #9aadb8;
   font-family: var(--mono);
-  font-size: 0.67rem;
+  font-size: var(--timeline-label-size, 0.8rem);
+  font-weight: 500;
   cursor: crosshair;
   user-select: none;
   touch-action: auto;
@@ -127,14 +104,12 @@
 }
 
 .cellButton:focus-visible {
-  position: relative;
   z-index: 1;
   outline: 2px solid #d2f6e1;
   outline-offset: -3px;
 }
 
 .cellButton[data-feedback="true"] {
-  position: relative;
   box-shadow: inset 0 0 0 2px #eac484;
 }
 
@@ -153,8 +128,12 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.65rem;
-  padding: 0 1.4rem 1rem;
+  padding: 0.9rem 1.4rem;
+  border-top: 1px solid var(--border);
 }
+
+.reviewActions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.65rem; }
+.helpError { margin: 0 1.4rem 1rem; color: #ffb9b1; font-size: 0.8rem; }
 
 .bottomActions p {
   color: var(--muted);
@@ -163,7 +142,8 @@
 }
 
 .bottomActions .checkButton {
-  padding-inline: 1.2rem;
+  min-width: 7.5rem;
+  padding-inline: 1rem;
   border-color: var(--accent);
   background: var(--accent);
   color: #10241d;
@@ -172,12 +152,6 @@
 
 .bottomActions .checkButton:hover {
   background: #b0efd3;
-}
-
-.checkHelp {
-  margin: -0.3rem 1.4rem 1rem;
-  color: var(--muted);
-  font-size: 0.73rem;
 }
 
 .screenReaderHelp {
@@ -192,13 +166,10 @@
   border: 0;
 }
 
-.checkHelp,
-.bottomActions p,
-.legend {
+.bottomActions p {
   overflow-wrap: anywhere;
 }
 
-.attemptStatus { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .assisted {
   padding: 0.2rem 0.5rem;
   border: 1px solid #7b6848;
@@ -206,19 +177,14 @@
   color: #e7c58d;
   font-size: 0.63rem;
 }
-.learningActions { display: flex; flex-wrap: wrap; gap: 0.65rem; padding: 0 1.4rem 1rem; }
-.learningActions button:last-child { margin-left: auto; }
 
 @media (max-width: 600px) {
   .toolbar,
-  .legend,
-  .toolStatus,
-  .checkHelp {
+  .helpError {
     margin-inline: 1rem;
   }
 
-  .bottomActions,
-  .learningActions {
+  .bottomActions {
     padding-inline: 1rem;
   }
 
@@ -226,6 +192,6 @@
     width: 100%;
   }
 
-  .learningActions button { flex: 1 1 auto; }
-  .learningActions button:last-child { margin-left: 0; }
+  .reviewActions { width: 100%; }
+  .reviewActions button { flex: 1 1 auto; }
 }

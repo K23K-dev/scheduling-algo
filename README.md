@@ -4,7 +4,7 @@ A web app for practicing CPU scheduling through interactive timelines, based on 
 
 The app generates processes with a first CPU burst, an I/O burst, and a second CPU burst. The learner chooses a scheduling algorithm and fills in two 40-block rows showing which process uses the CPU and the I/O device at each time. Feedback explains the first incorrect scheduling decision and lets the learner revise the attempt.
 
-**Status:** All five algorithms support generated problems, scheduling rules, editable 40-block CPU/I/O timelines with undo/redo, answer checking, progressive hints, and solution playback. Priority supports both preemptive and non-preemptive modes. Keyboard navigation and touch layouts are supported. Practice stays in the current page session; browser storage is outside the release scope. Course-specific behavior and app defaults are identified below.
+**Status:** All five algorithms support generated problems, editable 40-block CPU/I/O timelines with undo/redo, answer checking, and solution playback. Priority supports both preemptive and non-preemptive modes. Keyboard navigation and touch layouts are supported. Practice stays in the current page session; browser storage is outside the release scope. Course-specific behavior and app defaults are documented below. The hint engine remains available in code but is not exposed in the interface.
 
 ## Goals
 
@@ -16,12 +16,12 @@ The app generates processes with a first CPU burst, an I/O burst, and a second C
 
 ## Practice flow
 
-1. Select an algorithm and any required settings, such as a round-robin quantum.
-2. Generate a problem and read its process table and scheduling rules.
+1. Select an algorithm and any required settings, such as a round-robin quantum; each valid change generates a fresh problem.
+2. Read the generated problem's process table.
 3. Select a process, then click or drag to fill the CPU and I/O timelines.
 4. Assign **Idle** where a resource is unused.
 5. Select **Check answer** to find the earliest incorrect or unanswered interval.
-6. Revise the attempt, request a hint, or reveal the solution step by step.
+6. Revise the attempt or reveal the solution step by step.
 7. Retry the same problem or generate a new one.
 
 Checking should happen on request. Filling a cell should not immediately reveal whether it is correct.
@@ -42,7 +42,7 @@ Example input:
 | P2 | 0 | 15 | 2 | 6 | 2 |
 | P3 | 0 | 6 | 6 | 2 | 1 |
 
-This workload comes from the Unit 3 text. Under the course FCFS rules below, it finishes at time **41**, so it is a reference input and an overflow test, not a valid 40-cell FCFS practice problem. Keep its burst lengths unchanged. Show the priority column only for priority scheduling.
+This workload comes from the Unit 3 text. Under the course FCFS rules below, it finishes at time **41**, so it is a reference input and an overflow example, not a valid 40-cell FCFS practice problem. Keep its burst lengths unchanged. Show the priority column only for priority scheduling.
 
 Initial defaults:
 
@@ -71,7 +71,7 @@ Later difficulty settings can add staggered arrivals and two to five processes w
 
 The Unit 3 examples use **original application launch order**, including after a process returns from I/O. That process keeps its original place in the selection order.
 
-Standard FIFO ready-queue FCFS instead appends a returning process to the back of the ready queue. These rules can produce different answers. The initial app should label its option **FCFS — course launch order** and display that convention beside the problem. A separately named FIFO FCFS mode can be added later.
+Standard FIFO ready-queue FCFS instead appends a returning process to the back of the ready queue. These rules can produce different answers. The algorithm selector labels this option **FCFS**. A separately named FIFO FCFS mode can be added later.
 
 For staggered arrivals, launch order is arrival time, then process number.
 
@@ -101,17 +101,18 @@ All resource choices for an interval are made at its starting boundary. Use this
 
 With zero overhead, a CPU burst can end and I/O can begin at the same boundary. An I/O completion can also make a process eligible for CPU service immediately.
 
-These simultaneous-event and tie-breaking conventions are app defaults. Display them in a compact rules panel so grading never depends on a hidden assumption.
+These simultaneous-event and tie-breaking conventions are app defaults. Answer feedback and solution playback explain the rules relevant to each decision.
 
 ## Timeline interaction
 
-The main screen should contain:
+The main screen contains:
 
 - Algorithm selector, settings, and **New problem**.
-- Process table and a compact scheduling-rules panel.
+- A process table beside the setup controls on desktop.
 - A process palette with labels and distinct colors, plus **Idle** and **Erase**.
 - Aligned CPU and I/O rows with 40 cells each.
-- **Undo**, **Redo**, **Clear attempt**, **Check answer**, **Hint**, **Reveal solution**, and **Retry same problem**.
+- **Undo**, **Redo**, and **Clear attempt** beside the assignment tools.
+- A grouped footer with **Fill remaining empty cells with Idle**, **Retry same problem**, **Reveal solution**, and **Check answer**.
 - A feedback area below the timeline.
 
 Interaction requirements:
@@ -122,7 +123,7 @@ Interaction requirements:
 - Treat a drag as one undoable action.
 - Keep process labels visible; color alone must not convey the answer.
 - Support keyboard navigation and assignment, with readable row, interval, and process labels.
-- Use horizontal scrolling on smaller screens rather than compressing 40 cells until they are unreadable.
+- Fit all 40 cells across the available width on desktop screens at least 1100px wide with a fine pointer. Smaller screens and touch devices keep horizontal scrolling, with the scrollbar hidden.
 - Preserve the attempt until the learner explicitly clears it or starts another problem.
 
 Both resources remain Idle after the final process completes. The learner marks this tail as Idle; the app should not reveal the correct completion time before checking.
@@ -147,7 +148,7 @@ Examples of feedback:
 - “P2's CPU burst is unfinished, but its quantum has expired. It joins the back of the ready queue.”
 - “The I/O device is busy. P3 must wait for the current I/O request to finish.”
 
-Hints should reveal the relevant event or rule before giving the process assignment. Full solution playback should show the CPU, I/O device, queues, and explanation at each boundary.
+Full solution playback shows the CPU, I/O device, queues, and explanation at each boundary. The retained hint engine progressively reveals a rule, relevant facts, and then an assignment, but the practice interface does not offer hints.
 
 Keep the learner's attempt available beside or beneath a revealed solution. Mark attempts with a revealed solution as assisted. If a score is added, do not let the Idle padding after completion dominate it.
 
@@ -162,7 +163,7 @@ Generate a candidate workload, solve it, and keep it only if it satisfies the pr
 - Aim for problems that use much of the timeline while leaving room for variation.
 - Include varied cases: overlapping CPU/I/O, I/O contention, idle CPU intervals, and meaningful preemption or quantum expiration.
 - Do not require every problem to contain every teaching case. Use difficulty settings or scenario categories later.
-- When changing algorithms or quantum, revalidate the workload. If it no longer fits, explain that and generate a new problem.
+- Changing the algorithm, priority mode, or a valid round-robin quantum generates a fresh problem with a new seed.
 
 Generator version 1 uses three processes arriving at time 0, CPU bursts of 1–8 units, and I/O bursts of 1–5 units. It accepts schedules finishing between times 28 and 40, inclusive. These candidate ranges do not guarantee that every sample fits. Priority problems also include seeded priorities from 1–5, allowing equal priorities. Round-robin quanta of 2–4 units are suggested practice settings; the generator accepts any positive safe integer quantum.
 
@@ -208,14 +209,14 @@ Keep editable answers separate from the reference solution. Record enough state 
 The React-independent modules in `src/scheduling/` define the scheduling contracts:
 
 - `Problem` holds process inputs, algorithm settings, an unsigned 32-bit seed, and rules/generator versions. `parseProblem` accepts unknown data and returns either a detached, validated problem or errors with field paths. It requires positive integer bursts and quantum, nonnegative integer arrivals, and unique IDs such as P1 and P2. Numeric fields must be safe integers. Priority can be any safe integer, with smaller values ranking higher; it is required only for priority scheduling.
-- Structural validation deliberately allows small fixtures, staggered arrivals, and values outside the generator's ranges. It does **not** establish that a workload finishes by time 40; the simulator checks that separately. Unsupported versions and irrelevant settings, such as a quantum on SJF, are rejected.
+- Structural validation deliberately allows small workloads, staggered arrivals, and values outside the generator's ranges. It does **not** establish that a workload finishes by time 40; the simulator checks that separately. Unsupported versions and irrelevant settings, such as a quantum on SJF, are rejected.
 - An `Attempt` contains only editable CPU/I/O rows: `null` means unanswered, `"idle"` means intentionally Idle, and a process ID means an assignment. `parseAttempt` checks two 40-cell rows and valid process references, without grading the learner's choices. Reference timelines cannot contain unanswered cells.
 - Process states distinguish not arrived, ready, running, waiting for I/O, performing I/O, and completed. Boundary snapshots retain process work, ordered queues, resource assignments, and decision events. Snapshots at times 0–39 describe the state after dispatch and before execution; a terminal snapshot at 40 records final bookkeeping without another interval.
 - Rule helpers describe boundary phases, numeric process ordering, launch-order and ready-entry tie-breaks, strict preemption, and completion-before-quantum-expiration behavior. Ready-entry timestamps and actual FIFO queue positions remain separate.
 
 ### Simulator
 
-`simulate(problem)` in `src/scheduling/simulator.ts` supports **FCFS — course launch order**, **round robin**, **SJF**, **SRTF**, and **priority** in both modes. It validates the problem, preserves its inputs, and returns the same result on repeated calls. Invalid input, including unknown algorithms or missing priorities for priority scheduling, throws a `TypeError`.
+`simulate(problem)` in `src/scheduling/simulator.ts` supports **FCFS**, **round robin**, **SJF**, **SRTF**, and **priority** in both modes. It validates the problem, preserves its inputs, and returns the same result on repeated calls. Invalid input, including unknown algorithms or missing priorities for priority scheduling, throws a `TypeError`.
 
 The result contains two 40-cell reference timelines and 41 independent boundary snapshots, including process states, queue order, and decision events. Work completing at a boundary is processed before new dispatches, so CPU and I/O transitions have no extra delay. Course FCFS selects by original launch order and runs each CPU burst to completion. The shared I/O device serves requests in FIFO order and always runs them to completion.
 
@@ -225,57 +226,55 @@ SJF compares only the current burst and lets it finish. SRTF preempts only for a
 
 A completed workload returns `status: "complete"` with its actual `completionTime`; trailing timeline cells are Idle. Completion exactly at 40 is valid. Unfinished work returns `status: "limit-reached"` with `completionTime: null` and its remaining work recorded at boundary 40. The engine never executes an extra interval or changes burst lengths to make a workload fit. The generator rejects these unfinished workloads.
 
-Hand-calculated tests cover overlap, I/O contention, blocked CPU idleness, launch-order selection after I/O, round-robin rotation, fresh quanta, current-burst comparisons, both priority modes, strict preemption, selection ties, simultaneous events, and the worksheet limit. Additional invariant tests verify resource exclusivity, conserved work, FIFO queues, time-slice accounting, policy decisions, and reproducible, independent history snapshots across varied workloads. Boundary 40 still performs completion and queue bookkeeping, including unfinished quantum expiration and policy preemption, without dispatching or executing more work.
+Boundary 40 still performs completion and queue bookkeeping, including unfinished quantum expiration and policy preemption, without dispatching or executing more work.
 
 ### Generator
 
 `generateProblem(seed, settings)` in `src/scheduling/generator.ts` returns a detached `Problem` for any of the five algorithms. It validates the unsigned 32-bit seed and settings, then uses a local seeded random stream to sample P1, P2, and P3 in order, drawing CPU 1, I/O, then CPU 2 for each process. The same seed, settings, and versions reproduce the same workload, regardless of other generation calls.
 
-Priority uses an independent Mulberry32 stream seeded by `(seed ^ 0x9e3779b9) >>> 0`, drawing one value from 1–5 per process in numeric ID order. This stream restarts for each candidate and fallback, so rejected candidates and changes of priority mode do not change the priority values. Existing FCFS and round-robin version-1 outputs and burst draws remain unchanged. The new policies extend the supported settings without changing those existing contracts.
+Priority uses an independent Mulberry32 stream seeded by `(seed ^ 0x9e3779b9) >>> 0`, drawing one value from 1–5 per process in numeric ID order. This stream restarts for each candidate and fallback, so rejected candidates and changes of priority mode at a fixed seed do not change the priority values. Existing FCFS and round-robin version-1 outputs and burst draws remain unchanged. The new policies extend the supported settings without changing those existing contracts.
 
 Every candidate is checked by `simulate`. The first schedule completing in 28–40 intervals is accepted; rejected workloads are discarded without changing their bursts. After 100 rejected candidates, the generator checks and returns a fixed workload with 28 units of CPU work and 9 units of I/O work, adding the same seeded priorities when needed. Since all processes arrive at zero and every supported policy keeps working whenever work is available, that fallback finishes between times 28 and 37 under either priority mode or any valid quantum. A failed fallback check throws instead of returning an invalid worksheet.
 
-`createProblemSeed(previousSeed?)` draws a new unsigned 32-bit seed and avoids repeating the supplied current seed. Use it for **New problem**; **Retry** should retain the existing `Problem`. Store the actual processes along with their seed, settings, and versions. Changes to the random stream, sample order, ranges, acceptance rules, attempt limit, or fallback require a generator-version change. When changing settings, the practice workspace first simulates the existing workload under those settings, explaining any overflow and generating a replacement when necessary.
-
-Generator tests cover fixed-seed reproduction, invalid inputs, completion exactly at 40, whole-candidate rejection, bounded fallback, independent returned objects, and stable priorities. Tests across seeded worksheets for all policies check that all original work fits. The course FCFS and round-robin sample sets also verify CPU/I/O overlap, I/O contention, blocked CPU idle time, and meaningful quantum expiration.
+`createProblemSeed(previousSeed?)` draws a new unsigned 32-bit seed and avoids repeating the supplied current seed. The workspace uses it for **New problem** and changes to the algorithm, priority mode, or valid round-robin quantum; **Retry** retains the existing `Problem`. Store the actual processes along with their seed, settings, and versions. Changes to the random stream, sample order, ranges, acceptance rules, attempt limit, or fallback require a generator-version change.
 
 ### Practice workspace
 
-The app opens a generated course FCFS problem. Choose any algorithm, a positive whole-number quantum for round robin, or an explicit mode for priority. Priority initially uses non-preemptive mode. **Apply settings** keeps the existing processes, seed, answers, and undo history if the workload still finishes by time 40. If it overflows, the app explains the replacement and asks before discarding any existing or undoable answers. **New problem** uses a fresh seed with the selected settings and resets the attempt and its history. Controls remain a draft until either action; the process table and rules continue to describe the active problem. Invalid quantum input and failed generation leave that problem and attempt intact.
+The app opens a generated course FCFS problem. Choose any algorithm, a positive whole-number quantum for round robin, or an explicit mode for priority. Priority initially uses non-preemptive mode. Changing the algorithm, priority mode, or a valid quantum to a different value immediately generates a fresh problem and clears answers, undo/redo history, feedback, playback, and the assisted label. **New problem** generates another problem with the current settings. Every successful generation uses a seed different from the current problem's seed.
 
-The process table shows arrival, CPU 1, I/O, and CPU 2 values, plus a Priority column only when priority is the applied algorithm. Smaller numbers mean higher priority. Switching an existing workload to priority adds any missing values from its seed without changing its bursts. Existing priority values are retained across mode changes and switches to other algorithms. Rules show the active scheduling convention and priority mode, with expandable I/O and simultaneous-event details.
+An empty or invalid quantum shows an error and preserves the current problem and attempt. **New problem** cannot generate while that quantum is invalid, but switching to another algorithm still works. If generation fails, the previous problem, selection, and attempt remain available.
+
+The page has one logo/title header and a matching favicon. Setup controls and the process table sit side by side on desktop, with the timeline spanning the width below them.
+
+The process table shows arrival, CPU 1, I/O, and CPU 2 values, plus a Priority column only when priority is the current problem's algorithm. Smaller numbers mean higher priority. Each generated priority problem draws its priorities from its seed.
 
 The worksheet starts with 40 unanswered cells per resource and boundary labels 0–40. Select a process, **Idle**, or **Erase**, then click a block or drag through a contiguous range in one row. Dragging previews the range until release, including when dragging backward; reversing toward the starting block restores cells outside the smaller range. A completed drag is one undoable edit. Escape, pointer cancellation, loss of pointer capture, or the window losing focus cancels the preview. On touch screens, tap to assign and swipe to scroll without painting.
 
 **Fill remaining empty cells with Idle** preserves existing assignments. **Clear attempt** erases both rows. Each is a single undoable edit. Undo/redo retains up to 100 changes, ignores no-op assignments, and drops redo history only after a changed edit. History never crosses into a new problem. The immutable editing reducer is in `src/practice/attempt.ts`; answers are independent of the reference simulator, and even incorrect assignments are allowed without feedback.
 
-Keyboard users can choose **Skip to practice** at the start of the page. Tab moves through the tools and enters the timeline at its last focused cell; the other 79 cells do not add tab stops. Arrow keys move between cells, Home/End jump to the row's first/last block, Enter/Space assign the selected tool, and Delete/Backspace erase. **1/2/3** select the corresponding process, **I** selects Idle, and **E** selects Erase without changing any answers. The selected tool is shown and announced. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. Shortcuts apply only while focus is inside the worksheet and do not intercept text entry or composition.
+Keyboard users can choose **Skip to practice** at the start of the page. Tab moves through the tools and enters the timeline at its last focused cell; the other 79 cells do not add tab stops. Arrow keys move between cells, Home/End jump to the row's first/last block, Enter/Space assign the selected tool, and Delete/Backspace erase. **1/2/3** select the corresponding process, **I** selects Idle, and **E** selects Erase without changing any answers. Assignment buttons expose the selected tool through their pressed state. Ctrl/Cmd+Z undoes; Ctrl/Cmd+Shift+Z or Ctrl+Y redoes. Shortcuts apply only while focus is inside the worksheet and do not intercept text entry or composition.
 
-Focused cells scroll into view clear of the sticky resource labels. Every cell exposes its resource, interval, and assignment as an accessible label. Small screens and touch devices use timeline cells at least 44px wide and controls at least 44px tall; horizontal scrolling keeps the full 40 intervals readable. Headers and action groups wrap, and process-input and playback-state tables have labeled, keyboard-accessible scroll areas. Mobile input text stays at least 16px. The filled-cell count does not indicate correctness. Reloading or closing the page ends the attempt; local saving is intentionally omitted.
+Focused cells scroll into view clear of the sticky resource labels. Every cell exposes its resource, interval, and assignment as an accessible label. On desktop screens at least 1100px wide with a fine pointer, all 40 cells fit the available width. Small screens and touch devices use timeline cells at least 44px wide and controls at least 44px tall; horizontal scrolling remains available with its scrollbar hidden. Headers and action groups wrap, and process-input and playback-state tables have labeled, keyboard-accessible scroll areas. Mobile input text stays at least 16px. Reloading or closing the page ends the attempt; local saving is intentionally omitted.
 
-**Check answer** compares the current attempt against the applied settings, even while other settings are still a draft. It reports only the earliest wrong or unanswered interval, grouping CPU and I/O feedback when both need attention there. Each explanation names the expected assignment and explains the decision using the simulator's recorded events, process states, remaining work, and dispatch candidates. Unanswered cells remain different from intentional Idle cells, including the unused tail. A complete matching attempt receives a success message.
+**Check answer** compares the current attempt against the current problem's settings. It reports only the earliest wrong or unanswered interval, grouping CPU and I/O feedback when both need attention there. Each explanation names the expected assignment and explains the decision using the simulator's recorded events, process states, remaining work, and dispatch candidates. Unanswered cells remain different from intentional Idle cells, including the unused tail. A complete matching attempt receives a success message.
 
-The reported cells have an outline and a review marker, with accessible links to their explanations. **Edit CPU/I/O at time …** scrolls to and focuses that cell without changing its assignment. Checking never fills answers or changes undo history. Editing, undoing, redoing, clearing, or filling hides the previous result until another explicit check. Applying changed settings or starting a new problem also clears feedback; draft settings, invalid submissions, and canceled replacements preserve it.
+The reported cells have an outline and a review marker, with accessible links to their explanations. **Edit CPU/I/O at time …** scrolls to and focuses that cell without changing its assignment. Checking never fills answers or changes undo history. Editing, undoing, redoing, clearing, or filling hides the previous result until another explicit check. Successfully generating a problem, including through a settings change, clears feedback; invalid quantum input and failed generation preserve it.
 
-The pure grader is in `src/scheduling/grader.ts`. It validates attempts, uses the shared reference simulator, and returns only success or the issues at the first differing interval. It rejects invalid inputs and workloads that exceed 40 intervals. Tests cover chronological comparison across both rows, blank versus Idle, original launch order, round-robin queue ordering and expiration, shortest-burst and priority comparisons, selection ties, preemption and equal-value continuation, simultaneous completion, I/O contention, and the full check–correct–recheck interface flow for every policy.
+The pure grader is in `src/scheduling/grader.ts`. It validates attempts, uses the shared reference simulator, and returns only success or the issues at the first differing interval. It rejects invalid inputs and workloads that exceed 40 intervals.
 
-### Hints and solution playback
-
-**Hint** starts at the earliest wrong or unanswered interval, covering both resources when necessary. It reveals help in three stages:
-
-1. The applicable scheduling rule.
-2. **More detail** shows the relevant boundary events, candidates and remaining work, or I/O request order, without explicitly choosing an assignment.
-3. **Show this assignment** names the answer and explains why it runs.
-
-The first two stages leave the attempt unassisted. Revealing an assignment or the full solution marks it **Assisted attempt**. Each requested hint receives keyboard focus, and **Focus CPU/I/O at time …** jumps to the relevant cell without editing it. Editing clears the current hint so the next request considers the revised answers. Hints never fill cells or change undo history; a correct attempt receives a success message instead. The pure `getHint` helper in `src/scheduling/hints.ts` uses the grader's earliest mismatch and the simulator's recorded decisions, sharing explanations with checking and playback.
+### Solution playback
 
 **Reveal solution** opens a separate, read-only reference timeline beneath the editable worksheet. Playback starts paused. Use **Previous step**, **Next step**, the **Playback time** slider, **Back to start**, or **Go to end** to inspect any boundary. **Play** advances once per second; navigation, hiding the solution, leaving the window, or hiding the tab pauses it. It stops at time 40.
 
 Each interval shows CPU and I/O assignments with explanations, queues after dispatch, and process states with remaining CPU/I/O work. Round robin includes remaining quantum; priority includes process priorities. The timeline scrolls horizontally to follow the selected boundary. At time 40, playback shows final bookkeeping and events without inventing a 41st interval.
 
-The learner's answers and undo/redo remain available while the solution is open. Revealing playback moves focus to its heading. **Hide solution** closes playback, returns focus to **Reveal solution**, and retains the assisted label. Endpoint navigation keeps keyboard focus on the time slider when its button becomes disabled. Clearing answers also retains that label because it is undoable. Applying different settings closes playback and clears hints; if the workload stays the same, answers, history, and assisted status remain. Draft settings, invalid submissions, and canceled replacements preserve the current help.
+The learner's answers and undo/redo remain available while the solution is open. Revealing playback marks the attempt **Assisted attempt** and moves focus to its heading. **Hide solution** closes playback, returns focus to **Reveal solution**, and retains the assisted label. Endpoint navigation keeps keyboard focus on the time slider when its button becomes disabled. Clearing answers also retains that label because it is undoable. Successfully generating a problem, including through a settings change, closes playback and clears assisted status. Invalid quantum input and failed generation preserve the current playback.
 
-**Retry same problem** keeps the seed, processes, and applied settings while clearing answers, history, hints, playback, and the assisted label. **New problem** or an accepted replacement also resets this practice state. Tests cover progressive disclosure, all policies, terminal boundary 40, playback timers and cleanup, assistance tracking, retry, settings changes, and failure recovery.
+**Retry same problem** keeps the seed, processes, and settings while clearing answers, history, feedback, playback, and the assisted label. **New problem** and successful settings changes also reset this practice state.
+
+### Retained hint engine
+
+The pure `getHint` helper in `src/scheduling/hints.ts` remains available, but is not used by the practice interface. It uses the grader's earliest mismatch and the simulator's recorded decisions, sharing explanations with checking and playback. Level 1 gives the applicable rule; level 2 supplies relevant events, candidates, remaining work, or I/O request order; level 3 names the assignment and explains it. The helper covers both resources when necessary, never changes answers, and returns success for a correct attempt.
 
 ## Local development
 
@@ -295,14 +294,12 @@ Open the local URL printed by Vite. Generate a workload, choose an assignment to
 | `npm run dev` | Start the local development server |
 | `npm run lint` | Check code with Oxlint |
 | `npm run typecheck` | Check TypeScript types |
-| `npm test` | Run Vitest tests once |
-| `npm run test:watch` | Rerun tests as files change |
 | `npm run build` | Check types and create the production build in `dist/` |
 | `npm run preview` | Serve the existing production build locally |
 
-Run `npm run build` before `npm run preview`. Component tests use React Testing Library and jsdom.
+Run `npm run build` before `npm run preview`.
 
-GitHub Actions runs installation, linting, type checking, tests, and a production build for pull requests and pushes to `main`. Successful builds on `main` deploy to GitHub Pages. Pull requests run the checks without publishing.
+GitHub Actions runs installation, linting, type checking, and a production build for pull requests and pushes to `main`. Successful builds on `main` deploy to GitHub Pages. Pull requests run the checks without publishing.
 
 ## GitHub Pages deployment
 
@@ -335,7 +332,7 @@ For a local production preview, run `npm run build`, then `npm run preview`, and
 ### Phase 2 — Complete algorithm practice
 
 - Add SJF, SRTF, and both priority modes.
-- Add rules panels, progressive hints, and solution playback.
+- Add scheduling explanations and solution playback.
 - Add keyboard support and verify narrow-screen behavior.
 - Expand generated scenarios to exercise algorithm-specific decisions.
 
@@ -351,7 +348,7 @@ For a local production preview, run `npm run build`, then `npm run preview`, and
 
 ## Validation
 
-Use independent, hand-calculated fixtures to validate the simulator. Reusing the simulator to generate and grade problems is necessary for consistency, but does not prove it is correct.
+For manual verification, use independent, hand-calculated examples to validate the simulator. Reusing the simulator to generate and grade problems is necessary for consistency, but does not prove it is correct.
 
 Essential cases:
 
